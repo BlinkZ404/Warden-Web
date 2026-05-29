@@ -37,6 +37,20 @@ export default function IncidentDetail() {
     }
   }
 
+  async function revert() {
+    setBusy(true);
+    try {
+      await fetch(`/api/incidents/${id}/rollback`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decidedBy: "founder" }),
+      });
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!bundle) return <main className="p-10 text-[var(--color-muted)]">Loading…</main>;
 
   const { incident, investigation, fixAttempt, review, verification, deployment, outcome, events } =
@@ -86,6 +100,23 @@ export default function IncidentDetail() {
               Reject
             </button>
           </div>
+        </div>
+      )}
+
+      {incident.status === "resolved" && deployment && !deployment.rolled_back && (
+        <div className="mt-6 rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)] p-5">
+          <p className="font-medium text-[var(--color-ok)]">Shipped to production.</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            Changed your mind? Reverting re-points production to the previous deployment
+            instantly — no rebuild.
+          </p>
+          <button
+            onClick={() => revert()}
+            disabled={busy}
+            className="mt-4 rounded-lg border border-[var(--color-line)] px-5 py-2 font-medium text-[var(--color-warn)] disabled:opacity-50"
+          >
+            {busy ? "…" : "⤺ Revert (one tap)"}
+          </button>
         </div>
       )}
 

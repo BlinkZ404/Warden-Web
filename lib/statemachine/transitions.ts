@@ -23,8 +23,10 @@ export const TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
   // A human can re-route an escalated incident.
   escalated: ["investigating", "dismissed", "resolved", "failed"],
   failed: ["escalated", "dismissed"],
-  // terminal
-  resolved: [],
+  // A shipped fix can still be reverted by the founder — "one tap to revert"
+  // (PLAN tagline, §2, §13). This is a human action, not an automated one; the
+  // orchestrator never auto-leaves `resolved` (it stays a boundary).
+  resolved: ["rolled_back"],
   dismissed: [],
 };
 

@@ -41,6 +41,20 @@ export default function Approve() {
     }
   }
 
+  async function revert() {
+    setBusy(true);
+    try {
+      await fetch(`/api/incidents/${id}/rollback`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decidedBy: "founder" }),
+      });
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!bundle) return <main className="p-8 text-center text-[var(--color-muted)]">Loading…</main>;
 
   const { incident, fixAttempt, verification, deployment } = bundle;
@@ -107,6 +121,15 @@ export default function Approve() {
           </p>
           {incident.status === "resolved" && deployment?.prod_url && (
             <p className="mt-1 text-sm text-[var(--color-muted)]">Live at {deployment.prod_url}</p>
+          )}
+          {incident.status === "resolved" && !deployment?.rolled_back && (
+            <button
+              onClick={() => revert()}
+              disabled={busy}
+              className="mt-4 w-full rounded-2xl border border-[var(--color-line)] py-3 font-medium text-[var(--color-warn)] disabled:opacity-50"
+            >
+              {busy ? "…" : "⤺ Revert"}
+            </button>
           )}
         </div>
       )}
