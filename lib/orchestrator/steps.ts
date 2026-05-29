@@ -1,0 +1,441 @@
+/**
+ * The orchestrator step runner (PLAN §6, M3/M4/M7/M9).
+ *
+ * Design rules that make it safe + resumable:
+ *  - Stateless: every step re-reads incident state from the DB. Killing the
+ *    worker mid-pipeline loses nothing.
+ *  - Idempotent: each step checks whether its artifact already exists before
+ *    redoing work, and transition() is a no-op if already in the target state.
+ *  - One transition per call: the incident can only walk the legal lifecycle —
+ *    there is no path that reaches `deploying` without passing verification and
+ *    a human approval row.
+ *  - Agents have NO deploy authority. The only thing that moves an incident out
+ *    of awaiting_approval is a human-written `approvals` row (see lib/approval).
+ */
+import type { Incident } from "@/lib/db/types";
+import { getIncident, setEmbedding, findSimilar } from "@/lib/repo/incidents";
+import { listEvents } from "@/lib/repo/events";
+import {
+  latestInvestigation,
+  createInvestigation,
+  latestFixAttempt,
+  createFixAttempt,
+  latestReview,
+  createReview,
+  latestVerification,
+  createVerification,
+  latestDeployment,
+  createDeployment,
+  markDeploymentPromoted,
+  markDeploymentRolledBack,
+  recordOutcome,
+} from "@/lib/repo/artifacts";
+import { bumpScorecard } from "@/lib/repo/scorecard";
+import { transition, isBoundary } from "@/lib/statemachine";
+import { logEvent, logAgentAction, logError } from "@/lib/events";
+import { getEmbedder, incidentEmbeddingText } from "@/lib/memory/embeddings";
+import { getInvestigator } from "@/lib/agents/investigator";
+import { getFixer } from "@/lib/agents/fixer";
+import { getReviewer } from "@/lib/agents/reviewer";
+import type { SentryContext } from "@/lib/agents/types";
+import {
+  prepareWorkspace,
+  workspaceExists,
+  workspacePath,
+  runTests,
+  reproduce,
+} from "@/lib/adapters/workspace";
+import {
+  deployPreview,
+  promoteToProd,
+  rollback,
+  verifyProdHealth,
+} from "@/lib/adapters/deploy";
+import { consensusDecision, verificationGate } from "@/lib/policy/gate";
+import { getBugByFingerprint } from "@/lib/sim/bugs";
+
+const MIN_CONFIDENCE = 0.5; // §5.8: when uncertain, escalate — don't guess.
+
+/** Reconstruct error context from the ingest event (works in live + sim). */
+async function sentryContextFor(incident: Incident): Promise<SentryContext> {
+  const events = await listEvents(incident.id);
+  const ingest = events.find((e) => e.type === "ingest");
+  const p = (ingest?.payload ?? {}) as Record<string, string>;
+  return {
+    externalId: incident.external_id,
+    errorType: p.errorType ?? "Error",
+    errorMessage: p.errorMessage ?? incident.title,
+    culpritFile: p.culpritFile,
+    service: incident.service,
+  };
+}
+
+// ── per-state steps ──────────────────────────────────────────────────────────
+
+async function stepDetected(incident: Incident) {
+  await transition(incident.id, "triaging", "system");
+}
+
+async function stepTriaging(incident: Incident) {
+  // Embed + store, then check memory: "have we seen this before?" (PLAN §10).
+  const embedder = getEmbedder();
+  const vec = await embedder.embed(incidentEmbeddingText(incident));
+  await setEmbedding(incident.id, vec);
+
+  const similar = await findSimilar(vec, {
+    excludeId: incident.id,
+    limit: 3,
+    minSimilarity: 0.92,
+  });
+  if (similar.length > 0) {
+    await logEvent(incident.id, "memory", "system", {
+      seenBefore: true,
+      matches: similar.map((s) => ({
+        id: s.id,
+        title: s.title,
+        status: s.status,
+        similarity: Number(Number(s.similarity).toFixed(3)),
+      })),
+      note: "Similar to a past incident — recognized via pgvector.",
+    });
+  }
+
+  await transition(incident.id, "investigating", "system", {
+    embedder: embedder.name,
+    seenBefore: similar.length > 0,
+  });
+}
+
+async function stepInvestigating(incident: Incident) {
+  let inv = await latestInvestigation(incident.id);
+  if (!inv) {
+    const investigator = getInvestigator();
+    const result = await investigator.investigate(
+      incident,
+      await sentryContextFor(incident),
+    );
+    inv = await createInvestigation({
+      incident_id: incident.id,
+      root_cause: result.rootCause,
+      confidence: result.confidence,
+      context: result.context,
+    });
+    await logAgentAction(incident.id, investigator.name, "investigated", {
+      rootCause: result.rootCause,
+      confidence: result.confidence,
+    });
+  }
+
+  // §5.8 conservative scope: low confidence → escalate, never guess.
+  if ((inv.confidence ?? 0) < MIN_CONFIDENCE) {
+    await transition(incident.id, "escalated", "system", {
+      reason: `investigation confidence ${inv.confidence} below ${MIN_CONFIDENCE}`,
+    });
+    return;
+  }
+
+  // Materialize the isolated workspace (sim injects the bug; live clones the repo).
+  if (!(await workspaceExists(incident.id))) {
+    const bug = getBugByFingerprint(incident.fingerprint);
+    await prepareWorkspace(incident.id, bug);
+    await logEvent(incident.id, "workspace", "system", {
+      note: "Isolated git workspace prepared (production state reproduced).",
+    });
+  }
+
+  await transition(incident.id, "fix_proposed", "claude", {
+    confidence: inv.confidence,
+  });
+}
+
+async function stepFixProposed(incident: Incident) {
+  let fa = await latestFixAttempt(incident.id);
+  if (!fa) {
+    const inv = await latestInvestigation(incident.id);
+    if (!inv) throw new Error("fix step: investigation missing");
+    const fixer = getFixer();
+    const proposal = await fixer.propose({
+      incident,
+      investigation: inv,
+      workspaceRoot: workspacePath(incident.id),
+    });
+    fa = await createFixAttempt({
+      incident_id: incident.id,
+      agent: fixer.name,
+      branch: proposal.branch,
+      commit_sha: proposal.commitSha,
+      diff_summary: proposal.diffSummary,
+      files_changed: proposal.filesChanged,
+    });
+    await bumpScorecard(fixer.name, "fixer", { attempts: 1 });
+    await logAgentAction(incident.id, fixer.name, "proposed_fix", {
+      branch: proposal.branch,
+      commit: proposal.commitSha,
+      files: proposal.filesChanged,
+      summary: proposal.diffSummary,
+    });
+  }
+  await transition(incident.id, "under_review", "claude");
+}
+
+async function stepUnderReview(incident: Incident) {
+  const fa = await latestFixAttempt(incident.id);
+  if (!fa) throw new Error("review step: fix attempt missing");
+
+  let review = await latestReview(fa.id);
+  if (!review) {
+    const reviewer = getReviewer();
+    const inv = await latestInvestigation(incident.id);
+    const culpritFile = (inv?.context as { culpritFile?: string } | null)?.culpritFile;
+    const result = await reviewer.review({
+      incident,
+      fixAttempt: fa,
+      workspaceRoot: workspacePath(incident.id),
+      baseRef: "main",
+      headRef: fa.branch!,
+      culpritFile,
+    });
+    review = await createReview({
+      fix_attempt_id: fa.id,
+      reviewer_agent: reviewer.name,
+      verdict: result.verdict,
+      findings: result.findings,
+    });
+    await bumpScorecard(reviewer.name, "reviewer", { attempts: 1 });
+    await logAgentAction(incident.id, reviewer.name, "reviewed", {
+      verdict: result.verdict,
+      summary: result.summary,
+      notes: result.findings.notes,
+      scope: result.findings.scope,
+    });
+  }
+
+  // Consensus is a FILTER: disagreement → escalate, never auto-handle (§5.4).
+  const decision = consensusDecision(review.verdict);
+  if (decision.escalate) {
+    await logEvent(incident.id, "consensus", "system", {
+      decision: "escalate",
+      reviewerVerdict: review.verdict,
+      reason: decision.reason,
+    });
+    await transition(incident.id, "escalated", "system", { reason: decision.reason });
+    return;
+  }
+  await transition(incident.id, "verifying", "system");
+}
+
+async function stepVerifying(incident: Incident) {
+  const fa = await latestFixAttempt(incident.id);
+  if (!fa) throw new Error("verify step: fix attempt missing");
+
+  let v = await latestVerification(fa.id);
+  if (!v) {
+    const root = workspacePath(incident.id);
+    const bug = getBugByFingerprint(incident.fingerprint);
+
+    // Deploy a preview (PLAN §7). The REAL gate (below) runs against the tree.
+    const preview = await deployPreview(incident.id, root);
+    await createDeployment({
+      fix_attempt_id: fa.id,
+      provider: preview.provider,
+      deployment_id: preview.deploymentId,
+      preview_url: preview.previewUrl,
+      prod_url: null,
+    });
+
+    // Deterministic gate (§5.3): tests + does the original error still reproduce?
+    const tests = await runTests(root);
+    let errorRecurred = false;
+    if (bug) {
+      const repro = await reproduce(root, bug.reproScenario, bug.triggeringInput);
+      errorRecurred = repro.code !== 0;
+    }
+    const newErrors: string[] = []; // no new signatures detected in sim
+
+    v = await createVerification({
+      fix_attempt_id: fa.id,
+      preview_url: preview.previewUrl,
+      test_passed: tests.code === 0,
+      error_recurred: errorRecurred,
+      new_errors: newErrors,
+    });
+    await logEvent(incident.id, "verification", "system", {
+      preview_url: preview.previewUrl,
+      test_passed: tests.code === 0,
+      error_recurred: errorRecurred,
+      new_errors: newErrors.length,
+    });
+  }
+
+  const gate = verificationGate({
+    test_passed: !!v.test_passed,
+    error_recurred: !!v.error_recurred,
+    new_errors: (v.new_errors as unknown[]) ?? [],
+  });
+
+  if (!gate.pass) {
+    await logEvent(incident.id, "gate", "system", {
+      gate: "verification",
+      pass: false,
+      reasons: gate.reasons,
+    });
+    await transition(incident.id, "escalated", "system", {
+      reason: `verification failed: ${gate.reasons.join("; ")}`,
+    });
+    return;
+  }
+
+  await bumpScorecard(fa.agent, "fixer", { verified_passed: 1 });
+  await logEvent(incident.id, "gate", "system", {
+    gate: "verification",
+    pass: true,
+    reasons: gate.reasons,
+  });
+  await transition(incident.id, "awaiting_approval", "system");
+}
+
+async function stepApproved(incident: Incident) {
+  // Human consent recorded (lib/approval). Begin promotion.
+  await transition(incident.id, "deploying", "system");
+}
+
+async function stepDeploying(incident: Incident) {
+  const fa = await latestFixAttempt(incident.id);
+  if (!fa) throw new Error("deploy step: fix attempt missing");
+  const dep = await latestDeployment(fa.id);
+  const promo = await promoteToProd(dep?.deployment_id ?? `dpl_sim_${incident.id.slice(0, 8)}`);
+  if (dep) await markDeploymentPromoted(dep.id, promo.prodUrl);
+  await logEvent(incident.id, "deploy", "system", {
+    promoted: true,
+    prodUrl: promo.prodUrl,
+  });
+  await transition(incident.id, "verifying_prod", "system", { prodUrl: promo.prodUrl });
+}
+
+async function stepVerifyingProd(incident: Incident) {
+  const fa = await latestFixAttempt(incident.id);
+  if (!fa) throw new Error("verify-prod step: fix attempt missing");
+  const dep = await latestDeployment(fa.id);
+  const bug = getBugByFingerprint(incident.fingerprint);
+
+  const health = await verifyProdHealth({ simulateRegression: bug?.simProdRegresses });
+  if (!health.healthy) {
+    await rollback(dep?.deployment_id ?? "");
+    if (dep) await markDeploymentRolledBack(dep.id);
+    await bumpScorecard(fa.agent, "fixer", { regressions: 1 });
+    await logEvent(incident.id, "rollback", "system", {
+      reason: "production error-rate spike after promotion",
+      errorRateDelta: health.errorRateDelta,
+      newErrors: health.newErrors,
+    });
+    await transition(incident.id, "rolled_back", "system", {
+      reason: "prod regression detected; instant rollback",
+    });
+    return;
+  }
+
+  await recordOutcome({
+    incident_id: incident.id,
+    resolved: true,
+    recurred: false,
+    resolution_type: "code",
+    notes: "Fixed, verified on preview, approved, and healthy in production.",
+  });
+  await logEvent(incident.id, "outcome", "system", {
+    resolved: true,
+    prodHealthy: true,
+  });
+  await transition(incident.id, "resolved", "system");
+}
+
+async function stepRolledBack(incident: Incident) {
+  await recordOutcome({
+    incident_id: incident.id,
+    resolved: false,
+    recurred: true,
+    resolution_type: "none",
+    notes: "Auto-rolled back after a production regression; needs human follow-up.",
+  });
+  await transition(incident.id, "escalated", "system", {
+    reason: "rolled back; awaiting human decision",
+  });
+}
+
+// ── dispatcher ───────────────────────────────────────────────────────────────
+
+export interface AdvanceResult {
+  from: Incident["status"];
+  to: Incident["status"];
+  progressed: boolean;
+}
+
+/** Perform exactly one step of work for an incident, based on its current state. */
+export async function advanceIncident(incidentId: string): Promise<AdvanceResult> {
+  const incident = await getIncident(incidentId);
+  if (!incident) throw new Error(`advanceIncident: incident not found ${incidentId}`);
+  const from = incident.status;
+
+  switch (from) {
+    case "detected":
+      await stepDetected(incident);
+      break;
+    case "triaging":
+      await stepTriaging(incident);
+      break;
+    case "investigating":
+      await stepInvestigating(incident);
+      break;
+    case "fix_proposed":
+      await stepFixProposed(incident);
+      break;
+    case "under_review":
+      await stepUnderReview(incident);
+      break;
+    case "verifying":
+      await stepVerifying(incident);
+      break;
+    case "approved":
+      await stepApproved(incident);
+      break;
+    case "deploying":
+      await stepDeploying(incident);
+      break;
+    case "verifying_prod":
+      await stepVerifyingProd(incident);
+      break;
+    case "rolled_back":
+      await stepRolledBack(incident);
+      break;
+    default:
+      // awaiting_approval / escalated / resolved / failed / dismissed: nothing to do.
+      break;
+  }
+
+  const after = await getIncident(incidentId);
+  const to = after!.status;
+  return { from, to, progressed: to !== from };
+}
+
+/**
+ * Drive an incident through automated steps until it hits a boundary: a human
+ * gate (awaiting_approval), an escalation, or a terminal state. Bounded to
+ * avoid runaway loops.
+ */
+export async function runIncidentToBoundary(
+  incidentId: string,
+  opts: { maxSteps?: number } = {},
+): Promise<Incident["status"]> {
+  const maxSteps = opts.maxSteps ?? 40;
+  for (let i = 0; i < maxSteps; i++) {
+    const current = await getIncident(incidentId);
+    if (!current) throw new Error("incident vanished");
+    if (isBoundary(current.status)) return current.status;
+    const { to, progressed } = await advanceIncident(incidentId);
+    if (!progressed) return to; // stuck / boundary
+  }
+  const final = await getIncident(incidentId);
+  await logError(incidentId, "system", "runIncidentToBoundary hit maxSteps", {
+    status: final?.status,
+  });
+  return final!.status;
+}

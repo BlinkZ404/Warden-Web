@@ -1,0 +1,82 @@
+/**
+ * The guardrail / policy layer (PLAN §5, §10).
+ *
+ * Two distinct ideas, deliberately kept separate:
+ *
+ *  1. Multi-agent agreement is a FILTER, never the safety net (§5.4). The
+ *     Reviewer disagreeing is treated as "don't auto-handle" → escalate.
+ *
+ *  2. Deterministic verification is the REAL gate (§5.3): the test passes, the
+ *     original error stops reproducing on the preview, and no new errors
+ *     appear. Agent agreement can never override a failed deterministic check.
+ */
+import type { ReviewVerdict } from "@/lib/db/types";
+
+export interface ConsensusDecision {
+  proceed: boolean;
+  escalate: boolean;
+  reason: string;
+}
+
+/** §10: Reviewer verdict must be `approve`; uncertain/reject → escalate. */
+export function consensusDecision(verdict: ReviewVerdict): ConsensusDecision {
+  if (verdict === "approve") {
+    return { proceed: true, escalate: false, reason: "reviewer approved" };
+  }
+  return {
+    proceed: false,
+    escalate: true,
+    reason: `reviewer verdict was "${verdict}" — disagreement is surfaced as an escalation, not auto-handled`,
+  };
+}
+
+export interface VerificationFacts {
+  test_passed: boolean;
+  error_recurred: boolean;
+  new_errors: unknown[];
+}
+
+export interface GateResult {
+  pass: boolean;
+  reasons: string[];
+}
+
+/**
+ * §10 code-fix conditions that must ALL hold before an incident can reach
+ * awaiting_approval. This is the line a human approval cannot cross on its own.
+ */
+export function verificationGate(v: VerificationFacts): GateResult {
+  const reasons: string[] = [];
+  if (!v.test_passed) reasons.push("tests did not pass");
+  if (v.error_recurred)
+    reasons.push("the original error still reproduces on the preview");
+  const newCount = Array.isArray(v.new_errors) ? v.new_errors.length : 0;
+  if (newCount > 0) reasons.push(`${newCount} new error signature(s) introduced`);
+
+  if (reasons.length === 0) {
+    return {
+      pass: true,
+      reasons: [
+        "tests pass",
+        "original error no longer reproduces",
+        "no new error signatures",
+      ],
+    };
+  }
+  return { pass: false, reasons };
+}
+
+/** Scope sanity (§10): the diff should plausibly relate to the error. */
+export function scopeIsSane(input: {
+  filesChanged: number;
+  churn: number;
+  touchesCulprit: boolean;
+  unrelatedFiles: number;
+}): GateResult {
+  const reasons: string[] = [];
+  if (!input.touchesCulprit) reasons.push("fix does not touch the implicated file");
+  if (input.unrelatedFiles > 0) reasons.push("fix touches unrelated files");
+  if (input.filesChanged > 5) reasons.push("too many files changed");
+  if (input.churn > 120) reasons.push("diff is very large");
+  return { pass: reasons.length === 0, reasons };
+}
