@@ -44,7 +44,7 @@ export interface ReviewFindings {
 export interface ReviewResult {
   verdict: ReviewVerdict;
   summary: string;
-  findings: ReviewFindings & Record<string, unknown>;
+  findings: ReviewFindings;
 }
 
 export interface Investigator {

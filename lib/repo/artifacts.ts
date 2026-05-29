@@ -81,7 +81,7 @@ export async function createReview(input: {
   fix_attempt_id: string;
   reviewer_agent?: string;
   verdict: ReviewVerdict;
-  findings: Record<string, unknown>;
+  findings: object; // serialized to jsonb; ReviewFindings or any object bag
 }): Promise<Review> {
   return (await queryOne<Review>(
     `INSERT INTO reviews (fix_attempt_id, reviewer_agent, verdict, findings)

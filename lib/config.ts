@@ -17,7 +17,6 @@
 // Node 20+/24 can load a dotenv file natively. Safe to call repeatedly; ignore
 // if the file is missing (e.g. on Vercel where env comes from the platform).
 try {
-  // @ts-expect-error - process.loadEnvFile exists on Node >= 20.12
   if (typeof process.loadEnvFile === "function") process.loadEnvFile(".env");
 } catch {
   /* no .env file — rely on the ambient environment */

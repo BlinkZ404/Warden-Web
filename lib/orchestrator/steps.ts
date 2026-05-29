@@ -52,6 +52,7 @@ import {
   verifyProdHealth,
 } from "@/lib/adapters/deploy";
 import { consensusDecision, verificationGate } from "@/lib/policy/gate";
+import { notifyApprovalNeeded } from "@/lib/notify";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 
 const MIN_CONFIDENCE = 0.5; // §5.8: when uncertain, escalate — don't guess.
@@ -292,6 +293,13 @@ async function stepVerifying(incident: Incident) {
     reasons: gate.reasons,
   });
   await transition(incident.id, "awaiting_approval", "system");
+
+  // Ping the founder: plain-English summary + a one-tap approval link (§8).
+  await notifyApprovalNeeded({
+    incidentId: incident.id,
+    title: `Found a fix for the ${incident.service ?? "app"} crash`,
+    body: fa.diff_summary ?? "A fix is ready and passed verification.",
+  });
 }
 
 async function stepApproved(incident: Incident) {
