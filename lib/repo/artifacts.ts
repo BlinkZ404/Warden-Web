@@ -106,6 +106,14 @@ export async function latestReview(
   );
 }
 
+/** All reviews for a fix attempt (the reviewer panel), oldest first. */
+export async function listReviews(fixAttemptId: string): Promise<Review[]> {
+  return query<Review>(
+    "SELECT * FROM reviews WHERE fix_attempt_id = $1 ORDER BY created_at ASC, id ASC",
+    [fixAttemptId],
+  );
+}
+
 // ── verifications ──────────────────────────────────────────────────────────
 export async function createVerification(input: {
   fix_attempt_id: string;

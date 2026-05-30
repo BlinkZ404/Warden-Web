@@ -44,6 +44,20 @@ const agentProvider = (prefix: string) => ({
   model: str(`${prefix}_MODEL`, agentDefault.model),
 });
 
+function intIn(name: string, def: number, min: number, max: number): number {
+  const v = parseInt(str(name, String(def)), 10);
+  return Number.isNaN(v) ? def : Math.max(min, Math.min(max, v));
+}
+
+// Explicit reviewer panel (1–3). Unlike the providers above, these do NOT fall
+// back to AGENT_* — each is an opt-in slot, so you can run the cross-check on
+// different model families (REVIEWER_1=GLM, REVIEWER_2=DeepSeek, …).
+const reviewerPanel = [1, 2, 3].map((n) => ({
+  baseUrl: str(`REVIEWER_${n}_BASE_URL`),
+  apiKey: str(`REVIEWER_${n}_API_KEY`),
+  model: str(`REVIEWER_${n}_MODEL`),
+}));
+
 export const config = {
   mode,
   isSimulation: mode === "simulation",
@@ -68,6 +82,18 @@ export const config = {
     fixer: agentProvider("FIXER"),
     reviewer: agentProvider("REVIEWER"),
     investigator: agentProvider("INVESTIGATOR"),
+    reviewers: reviewerPanel, // explicit 1–3 reviewer panel
+  },
+
+  // Reviewer panel (PLAN §5.4 multi-agent cross-check): 1 Fixer + 1–3 Reviewers.
+  review: {
+    // When no explicit REVIEWER_1/2/3 panel is set, replicate the default
+    // reviewer provider this many times (1–3).
+    panelSize: intIn("REVIEW_PANEL_SIZE", 1, 1, 3),
+    // How many reviewers must APPROVE to proceed. Blank = unanimous (all of them).
+    approvalsRequired: str("REVIEW_APPROVALS_REQUIRED")
+      ? intIn("REVIEW_APPROVALS_REQUIRED", 1, 1, 3)
+      : null,
   },
 
   sentry: {

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { IncidentRow } from "@/lib/view";
 import type { AgentScorecard } from "@/lib/db/types";
-import { StatusBadge, VerdictPill } from "@/app/_components/ui";
+import { StatusBadge } from "@/app/_components/ui";
 import { relativeTime } from "@/lib/ui";
 
 interface Bug {
@@ -115,7 +115,21 @@ export default function Dashboard() {
                   <StatusBadge status={i.status} />
                 </td>
                 <td className="px-4 py-3">
-                  <VerdictPill verdict={i.reviewer_verdict} />
+                  {i.reviews_total === 0 ? (
+                    <span className="text-[var(--color-muted)]">—</span>
+                  ) : (
+                    <span
+                      title="reviewers that approved / panel size"
+                      style={{
+                        color:
+                          i.reviews_approved === i.reviews_total
+                            ? "var(--color-ok)"
+                            : "var(--color-warn)",
+                      }}
+                    >
+                      {i.reviews_approved}/{i.reviews_total} ✓
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {i.test_passed === null ? (

@@ -8,7 +8,7 @@ import { listEvents } from "@/lib/repo/events";
 import {
   latestInvestigation,
   latestFixAttempt,
-  latestReview,
+  listReviews,
   latestVerification,
   latestDeployment,
   latestApproval,
@@ -30,7 +30,7 @@ export interface IncidentBundle {
   incident: Incident;
   investigation: Investigation | null;
   fixAttempt: FixAttempt | null;
-  review: Review | null;
+  reviews: Review[]; // the reviewer panel (1–3)
   verification: Verification | null;
   deployment: Deployment | null;
   approval: Approval | null;
@@ -46,7 +46,7 @@ export async function getIncidentBundle(id: string): Promise<IncidentBundle | nu
     incident,
     investigation: await latestInvestigation(id),
     fixAttempt,
-    review: fixAttempt ? await latestReview(fixAttempt.id) : null,
+    reviews: fixAttempt ? await listReviews(fixAttempt.id) : [],
     verification: fixAttempt ? await latestVerification(fixAttempt.id) : null,
     deployment: fixAttempt ? await latestDeployment(fixAttempt.id) : null,
     approval: await latestApproval(id),
@@ -63,7 +63,8 @@ export interface IncidentRow {
   status: Incident["status"];
   created_at: Date;
   updated_at: Date;
-  reviewer_verdict: string | null;
+  reviews_total: number;
+  reviews_approved: number;
   test_passed: boolean | null;
   seen_before: boolean;
 }
@@ -74,11 +75,13 @@ export async function listIncidentRows(limit = 100): Promise<IncidentRow[]> {
   if (incidents.length === 0) return [];
   const ids = incidents.map((i) => i.id);
 
-  const verdicts = await query<{ incident_id: string; verdict: string }>(
-    `SELECT DISTINCT ON (fa.incident_id) fa.incident_id, r.verdict
+  const panel = await query<{ incident_id: string; total: number; approved: number }>(
+    `SELECT fa.incident_id,
+            count(r.*)::int AS total,
+            count(*) FILTER (WHERE r.verdict = 'approve')::int AS approved
      FROM fix_attempts fa JOIN reviews r ON r.fix_attempt_id = fa.id
      WHERE fa.incident_id = ANY($1)
-     ORDER BY fa.incident_id, r.created_at DESC`,
+     GROUP BY fa.incident_id`,
     [ids],
   );
   const tests = await query<{ incident_id: string; test_passed: boolean }>(
@@ -94,7 +97,7 @@ export async function listIncidentRows(limit = 100): Promise<IncidentRow[]> {
     [ids],
   );
 
-  const verdictMap = new Map(verdicts.map((v) => [v.incident_id, v.verdict]));
+  const panelMap = new Map(panel.map((p) => [p.incident_id, p]));
   const testMap = new Map(tests.map((t) => [t.incident_id, t.test_passed]));
   const seenSet = new Set(seen.map((s) => s.incident_id));
 
@@ -106,7 +109,8 @@ export async function listIncidentRows(limit = 100): Promise<IncidentRow[]> {
     status: i.status,
     created_at: i.created_at,
     updated_at: i.updated_at,
-    reviewer_verdict: verdictMap.get(i.id) ?? null,
+    reviews_total: panelMap.get(i.id)?.total ?? 0,
+    reviews_approved: panelMap.get(i.id)?.approved ?? 0,
     test_passed: testMap.get(i.id) ?? null,
     seen_before: seenSet.has(i.id),
   }));

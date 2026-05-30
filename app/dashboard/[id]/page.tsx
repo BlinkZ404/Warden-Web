@@ -53,8 +53,9 @@ export default function IncidentDetail() {
 
   if (!bundle) return <main className="p-10 text-[var(--color-muted)]">Loading…</main>;
 
-  const { incident, investigation, fixAttempt, review, verification, deployment, outcome, events } =
+  const { incident, investigation, fixAttempt, reviews, verification, deployment, outcome, events } =
     bundle;
+  const approvals = reviews.filter((r) => r.verdict === "approve").length;
   const awaiting = incident.status === "awaiting_approval";
 
   return (
@@ -137,16 +138,23 @@ export default function IncidentDetail() {
             />
           </Card>
         )}
-        {review && (
-          <Card title="Independent review" who={review.reviewer_agent}>
-            <div className="text-sm">
-              verdict: <VerdictPill verdict={review.verdict} />
-            </div>
-            <ul className="mt-2 list-disc pl-4 text-xs text-[var(--color-muted)]">
-              {((review.findings as { notes?: string[] })?.notes ?? []).map((n, i) => (
-                <li key={i}>{n}</li>
+        {reviews.length > 0 && (
+          <Card title={`Reviewer panel (${reviews.length})`} who={`${approvals}/${reviews.length} approved`}>
+            <div className="space-y-3">
+              {reviews.map((r) => (
+                <div key={r.id} className="border-t border-[var(--color-line)] pt-2 first:border-0 first:pt-0">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-mono text-xs text-[var(--color-muted)]">{r.reviewer_agent}</span>
+                    <VerdictPill verdict={r.verdict} />
+                  </div>
+                  <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-muted)]">
+                    {((r.findings as { notes?: string[] })?.notes ?? []).map((n, i) => (
+                      <li key={i}>{n}</li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </Card>
         )}
         {verification && (

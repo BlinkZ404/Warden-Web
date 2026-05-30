@@ -20,7 +20,7 @@ import {
   createInvestigation,
   latestFixAttempt,
   createFixAttempt,
-  latestReview,
+  listReviews,
   createReview,
   latestVerification,
   createVerification,
@@ -34,9 +34,10 @@ import { bumpScorecard } from "@/lib/repo/scorecard";
 import { transition, isBoundary } from "@/lib/statemachine";
 import { logEvent, logAgentAction, logError } from "@/lib/events";
 import { getEmbedder, incidentEmbeddingText } from "@/lib/memory/embeddings";
+import { config } from "@/lib/config";
 import { getInvestigator } from "@/lib/agents/investigator";
 import { getFixer } from "@/lib/agents/fixer";
-import { getReviewer } from "@/lib/agents/reviewer";
+import { getReviewers } from "@/lib/agents/reviewer";
 import type { SentryContext } from "@/lib/agents/types";
 import {
   prepareWorkspace,
@@ -57,7 +58,7 @@ import {
   verifyProdHealth,
   currentProdDeployment,
 } from "@/lib/adapters/deploy";
-import { consensusDecision, verificationGate } from "@/lib/policy/gate";
+import { consensusOf, verificationGate } from "@/lib/policy/gate";
 import { notifyApprovalNeeded } from "@/lib/notify";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 
@@ -235,43 +236,60 @@ async function stepUnderReview(incident: Incident) {
   if (!fa) throw new Error("review step: fix attempt missing");
   await ensureFixWorkspace(incident, fa); // resume on a fresh instance
 
-  let review = await latestReview(fa.id);
-  if (!review) {
-    const reviewer = getReviewer();
+  // Run the reviewer PANEL (1–3 independent reviewers, ideally different model
+  // families). Idempotent: only run reviewers that haven't recorded a row yet.
+  const reviewers = getReviewers();
+  const done = new Set((await listReviews(fa.id)).map((r) => r.reviewer_agent));
+  const todo = reviewers.filter((r) => !done.has(r.name));
+  if (todo.length > 0) {
     const inv = await latestInvestigation(incident.id);
     const culpritFile = (inv?.context as { culpritFile?: string } | null)?.culpritFile;
-    const result = await reviewer.review({
-      incident,
-      fixAttempt: fa,
-      workspaceRoot: workspacePath(incident.id),
-      baseRef: "main",
-      headRef: fa.branch!,
-      culpritFile,
-    });
-    review = await createReview({
-      fix_attempt_id: fa.id,
-      reviewer_agent: reviewer.name,
-      verdict: result.verdict,
-      findings: result.findings,
-    });
-    await bumpScorecard(reviewer.name, "reviewer", { attempts: 1 });
-    await logAgentAction(incident.id, reviewer.name, "reviewed", {
-      verdict: result.verdict,
-      summary: result.summary,
-      notes: result.findings.notes,
-      scope: result.findings.scope,
-    });
+    const reviewed = await Promise.all(
+      todo.map((reviewer) =>
+        reviewer
+          .review({
+            incident,
+            fixAttempt: fa,
+            workspaceRoot: workspacePath(incident.id),
+            baseRef: "main",
+            headRef: fa.branch!,
+            culpritFile,
+          })
+          .then((result) => ({ reviewer, result })),
+      ),
+    );
+    for (const { reviewer, result } of reviewed) {
+      await createReview({
+        fix_attempt_id: fa.id,
+        reviewer_agent: reviewer.name,
+        verdict: result.verdict,
+        findings: result.findings,
+      });
+      await bumpScorecard(reviewer.name, "reviewer", { attempts: 1 });
+      await logAgentAction(incident.id, reviewer.name, "reviewed", {
+        verdict: result.verdict,
+        summary: result.summary,
+        notes: result.findings.notes,
+        scope: result.findings.scope,
+      });
+    }
   }
 
   // Consensus is a FILTER: disagreement → escalate, never auto-handle (§5.4).
-  const decision = consensusDecision(review.verdict);
-  if (decision.escalate) {
-    await logEvent(incident.id, "consensus", "system", {
-      decision: "escalate",
-      reviewerVerdict: review.verdict,
-      reason: decision.reason,
-    });
-    await transition(incident.id, "escalated", "system", { reason: decision.reason });
+  const reviews = await listReviews(fa.id);
+  const consensus = consensusOf(
+    reviews.map((r) => ({ name: r.reviewer_agent, verdict: r.verdict })),
+    config.review.approvalsRequired,
+  );
+  await logEvent(incident.id, "consensus", "system", {
+    proceed: consensus.proceed,
+    approvals: consensus.approvals,
+    total: consensus.total,
+    required: consensus.required,
+    reason: consensus.reason,
+  });
+  if (consensus.escalate) {
+    await transition(incident.id, "escalated", "system", { reason: consensus.reason });
     return;
   }
   await transition(incident.id, "verifying", "system");

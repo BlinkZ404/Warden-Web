@@ -1,5 +1,5 @@
 import { config } from "@/lib/config";
-import { chatJson, isConfigured } from "@/lib/agents/openai-compat";
+import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
 import {
   diffStat,
   diffText,
@@ -29,8 +29,10 @@ function reviewerProvider() {
  * This is the product's "verify-not-review" cross-check (PLAN §3, §5.4, §10),
  * so it must produce a real signal: disagreement → escalate.
  */
-const simReviewer: Reviewer = {
-  name: "codex",
+/** A deterministic reviewer that does REAL diff/git analysis (no model call). */
+function simReviewer(name = "codex"): Reviewer {
+  return {
+    name,
   async review(ctx: ReviewerContext): Promise<ReviewResult> {
     const { workspaceRoot: root, baseRef, headRef, culpritFile } = ctx;
     const stat = await diffStat(root, baseRef, headRef);
@@ -110,50 +112,71 @@ const simReviewer: Reviewer = {
 
     return { verdict, summary, findings };
   },
-};
+  };
+}
 
-const liveReviewer: Reviewer = {
-  name: "codex",
-  async review(ctx: ReviewerContext): Promise<ReviewResult> {
-    // Live path: send the diff + git history to Codex/OpenAI for a verdict.
-    // (Untested without keys; gated behind live.reviewer().)
-    const diff = await diffText(ctx.workspaceRoot, ctx.baseRef, ctx.headRef);
-    const history = await fileHistory(ctx.workspaceRoot, ctx.culpritFile ?? "", {
-      ref: ctx.baseRef,
-      limit: 5,
-    });
-    const parsed = await chatJson<{
-      verdict: ReviewVerdict;
-      summary: string;
-      notes: string[];
-    }>(
-      reviewerProvider(),
-      'You are an independent code reviewer checking a production hotfix. Reply with a JSON object {"verdict":"approve|reject|uncertain","summary":string,"notes":string[]}. Check scope, regressions, and whether the fix targets the error. Prefer "uncertain" over approving a risky/over-scoped change.',
-      `Diff:\n${diff}\n\nRecent history of the implicated file:\n${JSON.stringify(history)}`,
-    );
-    const stat = await diffStat(ctx.workspaceRoot, ctx.baseRef, ctx.headRef);
-    return {
-      verdict: parsed.verdict,
-      summary: parsed.summary,
-      findings: {
-        scope: {
-          filesChanged: stat.filesChanged,
-          insertions: stat.insertions,
-          deletions: stat.deletions,
-          files: stat.files,
+/** A reviewer backed by any OpenAI-compatible model (a panel member). */
+function makeLiveReviewer(provider: CompatProvider, name: string): Reviewer {
+  return {
+    name,
+    async review(ctx: ReviewerContext): Promise<ReviewResult> {
+      const diff = await diffText(ctx.workspaceRoot, ctx.baseRef, ctx.headRef);
+      const history = await fileHistory(ctx.workspaceRoot, ctx.culpritFile ?? "", {
+        ref: ctx.baseRef,
+        limit: 5,
+      });
+      const parsed = await chatJson<{
+        verdict: ReviewVerdict;
+        summary: string;
+        notes: string[];
+      }>(
+        provider,
+        'You are an independent code reviewer checking a production hotfix. Reply with a JSON object {"verdict":"approve|reject|uncertain","summary":string,"notes":string[]}. Check scope, regressions, and whether the fix targets the error. Prefer "uncertain" over approving a risky/over-scoped change.',
+        `Diff:\n${diff}\n\nRecent history of the implicated file:\n${JSON.stringify(history)}`,
+      );
+      const stat = await diffStat(ctx.workspaceRoot, ctx.baseRef, ctx.headRef);
+      return {
+        verdict: parsed.verdict,
+        summary: parsed.summary,
+        findings: {
+          scope: {
+            filesChanged: stat.filesChanged,
+            insertions: stat.insertions,
+            deletions: stat.deletions,
+            files: stat.files,
+          },
+          touchesCulprit: ctx.culpritFile ? stat.files.includes(ctx.culpritFile) : true,
+          unrelatedFiles: [],
+          recentlyChanged: [],
+          notes: parsed.notes ?? [],
         },
-        touchesCulprit: ctx.culpritFile ? stat.files.includes(ctx.culpritFile) : true,
-        unrelatedFiles: [],
-        recentlyChanged: [],
-        notes: parsed.notes ?? [],
-      },
-    };
-  },
-};
+      };
+    },
+  };
+}
 
-export function getReviewer(): Reviewer {
-  if (config.isLive && (isConfigured(config.agents.reviewer) || config.agents.openaiApiKey)) {
-    return liveReviewer;
+/**
+ * The reviewer PANEL (PLAN §5.4): 1–3 independent reviewers. Diverse model
+ * families decorrelate the signal. Selection:
+ *   - explicit REVIEWER_1/2/3 providers → run exactly those, OR
+ *   - a single default provider replicated REVIEW_PANEL_SIZE times, OR
+ *   - the deterministic sim reviewer (replicated for the panel UI in sim).
+ */
+export function getReviewers(): Reviewer[] {
+  if (config.isLive) {
+    const explicit = config.agents.reviewers.filter(isConfigured);
+    if (explicit.length > 0) {
+      return explicit.map((p, i) => makeLiveReviewer(p, `${p.model} #${i + 1}`));
+    }
+    if (isConfigured(reviewerProvider())) {
+      const def = reviewerProvider();
+      return Array.from({ length: config.review.panelSize }, (_, i) =>
+        makeLiveReviewer(def, config.review.panelSize > 1 ? `${def.model} #${i + 1}` : def.model),
+      );
+    }
   }
-  return simReviewer;
+  const n = config.review.panelSize;
+  return Array.from({ length: n }, (_, i) =>
+    simReviewer(n > 1 ? `reviewer-${i + 1}` : "codex"),
+  );
 }

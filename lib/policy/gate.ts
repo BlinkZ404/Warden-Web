@@ -30,6 +30,45 @@ export function consensusDecision(verdict: ReviewVerdict): ConsensusDecision {
   };
 }
 
+export interface PanelConsensus {
+  proceed: boolean;
+  escalate: boolean;
+  approvals: number;
+  total: number;
+  required: number;
+  reason: string;
+}
+
+/**
+ * Consensus across a reviewer PANEL (PLAN §5.4). Proceed only if at least
+ * `requiredApprovals` reviewers approve — default is UNANIMOUS (all of them).
+ * Any shortfall escalates, surfacing the dissent. Agreement is a filter, never
+ * the safety net — the deterministic gate still runs afterward regardless.
+ */
+export function consensusOf(
+  verdicts: { name: string; verdict: ReviewVerdict }[],
+  requiredApprovals?: number | null,
+): PanelConsensus {
+  const total = verdicts.length;
+  const required = Math.min(total, requiredApprovals ?? total); // default: unanimous
+  const approvals = verdicts.filter((v) => v.verdict === "approve").length;
+  const dissent = verdicts.filter((v) => v.verdict !== "approve");
+  const proceed = total > 0 && approvals >= required;
+  return {
+    proceed,
+    escalate: !proceed,
+    approvals,
+    total,
+    required,
+    reason: proceed
+      ? `${approvals}/${total} reviewers approved (needed ${required})`
+      : `only ${approvals}/${total} reviewers approved (needed ${required})` +
+        (dissent.length
+          ? `; dissent: ${dissent.map((d) => `${d.name}=${d.verdict}`).join(", ")}`
+          : ""),
+  };
+}
+
 export interface VerificationFacts {
   test_passed: boolean;
   error_recurred: boolean;
