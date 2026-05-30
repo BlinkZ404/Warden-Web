@@ -1,4 +1,4 @@
-# Nightshift — Business Plan
+# Warden — Business Plan
 
 *The autonomous on-call engineer for founders who can't read code.*
 
@@ -8,7 +8,7 @@ Grounded in the repo (PLAN.md, README.md, AUDIT.md, docs/architecture.md, GO-LIV
 
 ## 1. The bet, in 5 bullets
 
-1. **There is uncontested white space below the entire AI-SRE category.** Every funded competitor (Cleric, Resolve.ai at a **$1B valuation / ~$200M raised**, Traversal, Datadog Bits, Sentry Seer) sells *investigation* or *PR-drafting* to people who can read code. Nobody serves the founder who **can't read the diff** and has no engineer to read it for them. The current "competitor" for that buyer is a **$30 Fiverr/Upwork human** who manually fixes your Lovable/Bolt/Replit app. Nightshift is the productized, always-on, auditable replacement for that human.
+1. **There is uncontested white space below the entire AI-SRE category.** Every funded competitor (Cleric, Resolve.ai at a **$1B valuation / ~$200M raised**, Traversal, Datadog Bits, Sentry Seer) sells *investigation* or *PR-drafting* to people who can read code. Nobody serves the founder who **can't read the diff** and has no engineer to read it for them. The current "competitor" for that buyer is a **$30 Fiverr/Upwork human** who manually fixes your Lovable/Bolt/Replit app. Warden is the productized, always-on, auditable replacement for that human.
 
 2. **Trust comes from verification + reversibility + consent — not code review.** The buyer can't vet a patch, so the product is a *control plane*: a deterministic gate (tests pass, the error stops reproducing on a preview, no new errors) + one-tap revert + a human consent gate. This is the one thing every incumbent structurally refuses to ship to non-readers, because "a developer reviews the PR" *is* their safety story.
 
@@ -24,23 +24,23 @@ Grounded in the repo (PLAN.md, README.md, AUDIT.md, docs/architecture.md, GO-LIV
 
 **Category to claim:** *Autonomous on-call / self-healing for non-technical builders* — an **AI maintenance engineer for vibe-coded apps**, framed as a trust/control-plane product. **Not** an "AI-SRE" (don't get benchmarked on RCA accuracy your buyer can't evaluate) and **not** "a cheaper Devin."
 
-**One-sentence narrative:** *Nightshift is the autonomous on-call engineer for founders who can't read code — it catches a production error, fixes it, proves the fix on a preview, and texts you one tap to ship or revert; trust comes from verification and reversibility, not from you reviewing a diff you couldn't read anyway.*
+**One-sentence narrative:** *Warden is the autonomous on-call engineer for founders who can't read code — it catches a production error, fixes it, proves the fix on a preview, and texts you one tap to ship or revert; trust comes from verification and reversibility, not from you reviewing a diff you couldn't read anyway.*
 
-The market lumps three categories together. Nightshift competes with parts of each and belongs to none:
+The market lumps three categories together. Warden competes with parts of each and belongs to none:
 
-| Category | Representative players | Buyer | Remediation ceiling | Why it's not Nightshift's buyer |
+| Category | Representative players | Buyer | Remediation ceiling | Why it's not Warden's buyer |
 |---|---|---|---|---|
 | **AI-SRE / autonomous investigation** | Cleric (observe + recommend, **read-only by design**); Resolve.ai (targets 80% autonomy, F500, **$1B / ~$200M**); Traversal (90%+ RCA accuracy, recommendations only); Datadog Bits (**$500 / 20 conclusive investigations/mo**); PagerDuty/incident.io/New Relic | SRE teams at mid-large orgs | Investigation + draft; human-in-the-loop | Enterprise-priced, SRE-operated; the ICP has no SRE, no observability budget, no one to read the RCA |
 | **Coding agents** | Devin (**$20/mo + $2.25/ACU**); Cursor / Claude Code / Copilot | Developers | PR-first; no consent/verify/revert contract | Assumes a developer reviews the PR. The ICP reaches for these and gives up ("Founders Build, Devs Fix") |
 | **Incident-first autofix** ← our real competitor | **Sentry Seer**: error → RCA → drafted PR in ~6 min | Developers | **Opens a reviewable PR; a human still clicks merge. Does NOT auto-merge/deploy** | Priced at **$40 per active contributor/mo** (active = 2+ PRs) — a definition the ICP can't even satisfy |
 
 **Precise framing vs each:**
-- **vs Sentry Seer:** "Seer writes a PR for your developer. You don't have a developer. Nightshift tests the fix on a preview and texts you one tap to ship — and one tap to undo." ([Seer GA](https://blog.sentry.io/seer-sentrys-ai-debugger-is-generally-available/), [Seer won't auto-create/merge](https://docs.sentry.io/product/ai-in-sentry/seer/autofix/))
+- **vs Sentry Seer:** "Seer writes a PR for your developer. You don't have a developer. Warden tests the fix on a preview and texts you one tap to ship — and one tap to undo." ([Seer GA](https://blog.sentry.io/seer-sentrys-ai-debugger-is-generally-available/), [Seer won't auto-create/merge](https://docs.sentry.io/product/ai-in-sentry/seer/autofix/))
 - **vs Cleric/Resolve/Traversal:** "They're an AI co-pilot for an SRE team. You *are* the SRE team — except you can't read code." ([Resolve.ai $1B raise](https://www.pymnts.com/news/investment-tracker/2026/resolve-ai-raises-125-million-for-ai-agents-that-maintain-software/), [Cleric](https://cleric.ai/))
-- **vs Devin/Cursor/Claude Code:** "Coding agents fix code for engineers and assume someone reviews the PR. Nightshift starts from a real production error, proves the fix deterministically, and never ships without your consent or instant revert." ([Devin pricing](https://costbench.com/software/ai-coding-assistants/devin-ai/))
+- **vs Devin/Cursor/Claude Code:** "Coding agents fix code for engineers and assume someone reviews the PR. Warden starts from a real production error, proves the fix deterministically, and never ships without your consent or instant revert." ([Devin pricing](https://costbench.com/software/ai-coding-assistants/devin-ai/))
 - **vs the Fiverr/Upwork $30 human:** "Same job — fix my broken Lovable/Bolt app — but always-on, in minutes, with a full audit trail and memory that gets smarter every incident." ([Upwork: fix Bolt/Lovable/Replit](https://www.upwork.com/services/product/development-it-fix-and-deploy-your-bolt-lovable-or-replit-generated-app-to-production-2039748386706369776))
 
-**The structural defense against platform encroachment** (Sentry adds "auto-merge for high-confidence fixes"; Vercel/Lovable add a native "Fix it" button — the real existential threat, since they own the funnel): be the **vendor-neutral control plane** — Sentry is one pluggable error source among many (Vercel logs, uptime, CI, user reports), any host, any model. A single-vendor incumbent structurally won't build cross-vendor neutrality, and absorbing Nightshift would mean abandoning the developer-reviews-the-PR model that is their entire safety story. Win the founder ICP's trust before platforms notice the segment exists.
+**The structural defense against platform encroachment** (Sentry adds "auto-merge for high-confidence fixes"; Vercel/Lovable add a native "Fix it" button — the real existential threat, since they own the funnel): be the **vendor-neutral control plane** — Sentry is one pluggable error source among many (Vercel logs, uptime, CI, user reports), any host, any model. A single-vendor incumbent structurally won't build cross-vendor neutrality, and absorbing Warden would mean abandoning the developer-reviews-the-PR model that is their entire safety story. Win the founder ICP's trust before platforms notice the segment exists.
 
 ---
 
@@ -88,7 +88,7 @@ What the live gate actually does today: `reproduce()` is wired only to the seede
 
 The verification roadmap (hardest-first, this is the IP):
 1. **Repro-from-stack-trace** — synthesize a failing reproduction from the Sentry event (failing request/payload + stack frame) so `error_recurred` becomes a real signal on arbitrary incidents. Single highest-IP component.
-2. **Smoke-test generation for test-less repos** — generate a minimal test exercising the culprit path, turning the ICP's biggest weakness into Nightshift's value.
+2. **Smoke-test generation for test-less repos** — generate a minimal test exercising the culprit path, turning the ICP's biggest weakness into Warden's value.
 3. **New-error / error-rate diff** post-preview and post-promote (Sentry/Vercel) to populate `new_errors`, make `verifyProdHealth` real, and enable autonomous resolve **and** auto-rollback.
 
 ### Moat #2 — close the flywheel (collected, not consumed)
@@ -123,7 +123,7 @@ The instinct that single-file context is too thin is correct: the Fixer reads on
 | **Team BYO-key** | **$149/mo flat** | Cost-conscious (B) | Same product, they pay inference | **~95%+ margin**, immune to a provider yanking a free tier |
 | **Scale / Enterprise** | Custom ($1.5K–5K+/mo) | (C) expansion | SSO, SOC2, multi-repo, SLAs, on-prem keys | Negotiated |
 
-**Price anchor:** Sentry Seer is **$40/active-contributor/mo** and *requires a developer to review the PR* ([Seer pricing, Jan 2026](https://sentry.zendesk.com/hc/en-us/articles/45551407771931-What-is-the-pricing-for-Seer-January-21-2026)). Nightshift sells to the team with **nobody to do that review** — so a $199/team retainer that *removes* the review step is defensible at or above Seer's effective per-team cost.
+**Price anchor:** Sentry Seer is **$40/active-contributor/mo** and *requires a developer to review the PR* ([Seer pricing, Jan 2026](https://sentry.zendesk.com/hc/en-us/articles/45551407771931-What-is-the-pricing-for-Seer-January-21-2026)). Warden sells to the team with **nobody to do that review** — so a $199/team retainer that *removes* the review step is defensible at or above Seer's effective per-team cost.
 
 ### Unit economics — tokens are NOT the COGS floor
 
@@ -151,9 +151,9 @@ Per-incident, on paid DeepSeek ($0.14/$0.28 per M tokens, *not* the promo/cache 
 
 | Week | Focus | Concrete deliverables | Success gate |
 |---|---|---|---|
-| **W1 (May 30–Jun 5)** | **Provision + tracer bullet + open the slow clocks** | **A:** Deploy `sample-app/` to Vercel with real Sentry; provision **Aurora Serverless v2** (0.5–2 ACU), `CREATE EXTENSION vector`, `npm run migrate`; **capture the storage screenshot now**; set `NIGHTSHIFT_MODE=live` + DeepSeek/GLM keys; validate live fixer patch-apply + reviewer JSON. **B:** Push to GitHub → import to Vercel → note prod URL + Team ID; wire `/api/orchestrator/tick` cron. **C:** Ship landing + waitlist; start **3–5 design-partner outreach**. | Loop runs and *breaks at a known leg* (repro / deploy-parity), documented |
+| **W1 (May 30–Jun 5)** | **Provision + tracer bullet + open the slow clocks** | **A:** Deploy `sample-app/` to Vercel with real Sentry; provision **Aurora Serverless v2** (0.5–2 ACU), `CREATE EXTENSION vector`, `npm run migrate`; **capture the storage screenshot now**; set `WARDEN_MODE=live` + DeepSeek/GLM keys; validate live fixer patch-apply + reviewer JSON. **B:** Push to GitHub → import to Vercel → note prod URL + Team ID; wire `/api/orchestrator/tick` cron. **C:** Ship landing + waitlist; start **3–5 design-partner outreach**. | Loop runs and *breaks at a known leg* (repro / deploy-parity), documented |
 | **W2 (Jun 6–Jun 12)** | **Close the loop; make the gate bite** | **Reproduction harness** (replay the failing Sentry request against the preview so `error_recurred` is real) — scoped to ONE bug class. **Deploy parity** (`git push` branch, set `VERCEL_REPO_ID`, assert built SHA == `fix_attempts.commit_sha`). **Pin the target to a repo that HAS tests.** | 🎯 **≥1 real Sentry error → auto-fixed → verified on preview → human-approved → shipped → recorded in Aurora**, AND the panel **correctly escalates ≥1 deliberately bad fix**. If false by ~Jun 12, cut scope |
-| **W3 (Jun 13–Jun 19)** | **Multi-tenant-lite, partners on, hardening** | `tenant_id` FK + scoped queries behind the existing `NIGHTSHIFT_API_SECRET` (**no Auth.js/RBAC**). Onboard 1–2 design partners on a connected repo (NOT the demo critical path). **Cost instrumentation** (token spend/incident). Run the loop 10× on injected bugs; fix flakiness under real Vercel latency. | Loop survives >1 user; cost/incident proven in single-digit cents |
+| **W3 (Jun 13–Jun 19)** | **Multi-tenant-lite, partners on, hardening** | `tenant_id` FK + scoped queries behind the existing `WARDEN_API_SECRET` (**no Auth.js/RBAC**). Onboard 1–2 design partners on a connected repo (NOT the demo critical path). **Cost instrumentation** (token spend/incident). Run the loop 10× on injected bugs; fix flakiness under real Vercel latency. | Loop survives >1 user; cost/incident proven in single-digit cents |
 | **W4 (Jun 20–Jun 26)** | **Freeze, polish, package** | **Freeze the demo ~Jun 24.** Record the ~3-min video (PLAN §14). Submission package: name **Amazon Aurora PostgreSQL Serverless v2**; Vercel link + Team ID; architecture diagram (export existing mermaid); Aurora screenshot. | **Submit Jun 27–28** (buffer), not Jun 29 |
 
 **What to cut (explicit):** code-graph/repo-map (quality lever, not blocker — post-Jun 29); real auth/identity (`tenant_id` + shared secret is the floor); smoke-test generation (sidestep by picking a target *with* tests); non-Sentry sources, non-Vercel hosts, data-mutation fixes; multiple demo bug classes (one bulletproof beats five flaky). **The sequencing trap:** treating business seeds + provisioning as Week-4 work — partner replies and account approvals are clocks you don't control. And don't build the code-graph because the gap excites you; it's the single thing most likely to eat the runway while adding zero to whether the loop closes.
@@ -176,7 +176,7 @@ Per-incident, on paid DeepSeek ($0.14/$0.28 per M tokens, *not* the promo/cache 
 
 **Launch motion (sequenced):**
 1. **Hackathon (Jun 29) = forcing function + free ecosystem placement**, not the goal. The real prize is the first public "it shipped a fix while I slept" proof.
-2. **5–10 design partners — the only thing that matters in June/July.** Solo/non-technical founders with a live Sentry-connected v0/Lovable app; onboard white-glove. The conversion event is visceral: *"connect your Sentry, then watch Nightshift catch and fix a real bug."* Each becomes a case study + referral.
+2. **5–10 design partners — the only thing that matters in June/July.** Solo/non-technical founders with a live Sentry-connected v0/Lovable app; onboard white-glove. The conversion event is visceral: *"connect your Sentry, then watch Warden catch and fix a real bug."* Each becomes a case study + referral.
 3. **PLG via the "watch it fix a real bug" demo.** Activation metric = **time-to-first-verified-fix**; the aha is the first push, not signup.
 4. **Founder-led sales up the ladder** → tiny teams and agencies who ship vibe-coded apps for clients — the path off the thin-wallet floor.
 
@@ -192,7 +192,7 @@ Per-incident, on paid DeepSeek ($0.14/$0.28 per M tokens, *not* the promo/cache 
 
 ## 9. The 6–12 month vision
 
-**Thesis:** Nightshift becomes the **autonomous operations layer for software built by people who don't read code** — the standing "on-call engineer you don't have" for the millions of AI-built apps hitting the production "Technical Cliff."
+**Thesis:** Warden becomes the **autonomous operations layer for software built by people who don't read code** — the standing "on-call engineer you don't have" for the millions of AI-built apps hitting the production "Technical Cliff."
 
 - **Months 0–3 (now → Aug):** Live path working; the repro + smoke-test harness makes *autonomous resolution real on test-less apps*; 5–10 design partners; first public autonomous-fix proof.
 - **Months 3–6:** Self-serve PLG; first paying solo founders graduating into Team plans; the **code-graph/repo-map context provider** lands as the *fix-quality* lever (after the harness makes the gate fire); pgvector memory + scorecard start to compound.
@@ -206,7 +206,7 @@ Per-incident, on paid DeepSeek ($0.14/$0.28 per M tokens, *not* the promo/cache 
 
 | # | Metric | What it proves | Target signal |
 |---|---|---|---|
-| **1** | **Approval rate on auto-fixes** (% of `awaiting_approval` the founder taps Approve) | *Trust* — would a non-technical founder ship what Nightshift proposes? | **>70% sustained** |
+| **1** | **Approval rate on auto-fixes** (% of `awaiting_approval` the founder taps Approve) | *Trust* — would a non-technical founder ship what Warden proposes? | **>70% sustained** |
 | **2** | **Autonomous-resolution rate** (% of incidents reaching `awaiting_approval` WITHOUT escalating) | *Product quality / the R2 gap* — does the gate fire on real test-less apps? | **Rising from ~0 toward 50%+** |
 | **3** | **Post-ship revert rate** (% of shipped fixes reverted / auto-rolled-back) | *Safety* — is reversibility a rare backstop or a crutch? | **<5%** (spiking = stop expanding scope) |
 | **4** | **Time-to-first-verified-fix** (signup → first "I found a verified fix" push) | *Activation* — the aha moment + PLG engine | **< a few days** |

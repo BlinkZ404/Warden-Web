@@ -34,7 +34,7 @@ describe("workspace adapter — real inject/fix/verify", () => {
     expect(badRepro.stderr).toContain("TypeError");
 
     // fix on a branch
-    await createBranch(ws.root, "nightshift/fix");
+    await createBranch(ws.root, "warden/fix");
     await applyEdit(ws.root, bug.fix);
     await commitAll(ws.root, "fix: handle line items without a price");
 
@@ -43,7 +43,7 @@ describe("workspace adapter — real inject/fix/verify", () => {
     expect((await reproduce(ws.root, bug.reproScenario, bug.triggeringInput)).code).toBe(0);
 
     // scope is small + touches the culprit file
-    const stat = await diffStat(ws.root, "main", "nightshift/fix");
+    const stat = await diffStat(ws.root, "main", "warden/fix");
     expect(stat.files).toEqual(["src/checkout.js"]);
     expect(stat.filesChanged).toBe(1);
 
@@ -61,7 +61,7 @@ describe("workspace adapter — real inject/fix/verify", () => {
 
     expect((await reproduce(ws.root, bug.reproScenario, bug.triggeringInput)).code).toBe(1);
 
-    await createBranch(ws.root, "nightshift/fix");
+    await createBranch(ws.root, "warden/fix");
     await applyEdit(ws.root, bug.fix);
     await commitAll(ws.root, "fix: ignore unknown discount codes");
 
@@ -75,7 +75,7 @@ describe("workspace adapter — real inject/fix/verify", () => {
     const bug = getBugByKey("checkout-missing-price")!;
     const id = "wstest-idem";
     const ws = await prepareWorkspace(id, bug);
-    await createBranch(ws.root, "nightshift/fix");
+    await createBranch(ws.root, "warden/fix");
     await applyEdit(ws.root, bug.fix);
     const sha1 = await commitAll(ws.root, "fix");
 

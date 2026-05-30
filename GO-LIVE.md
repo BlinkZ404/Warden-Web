@@ -1,12 +1,12 @@
 # Going live — the human steps
 
-Nightshift is **built and verified in simulation mode** against a real Postgres,
+Warden is **built and verified in simulation mode** against a real Postgres,
 and is **Aurora/Vercel-ready**. Everything below is inherently human/account-
 gated (it needs *your* accounts, dashboards, billing, and secrets), which is why
 it wasn't automated. None of it changes application code — it's configuration.
 
 > TL;DR: provision Aurora → deploy to Vercel → connect Sentry → add keys → set
-> `NIGHTSHIFT_MODE=live`. Each capability flips to "real" independently as soon
+> `WARDEN_MODE=live`. Each capability flips to "real" independently as soon
 > as its secret is present, so you can do these in any order and test
 > incrementally.
 
@@ -17,12 +17,12 @@ it wasn't automated. None of it changes application code — it's configuration.
 1. RDS console → **Create database** → Amazon Aurora → **PostgreSQL-compatible**
    → **Serverless v2** capacity. Pick a min/max ACU (0.5–2 ACU is plenty for the
    demo).
-2. Create a database named `nightshift`. Note the **writer endpoint**, port,
+2. Create a database named `warden`. Note the **writer endpoint**, port,
    user, password.
 3. Enable **pgvector**: connect and run `CREATE EXTENSION IF NOT EXISTS vector;`
    (the migration does this too, but the master role needs the privilege).
 4. Set `DATABASE_URL` to the Aurora endpoint:
-   `postgres://USER:PASS@your-cluster.cluster-xxxx.us-east-1.rds.amazonaws.com:5432/nightshift`
+   `postgres://USER:PASS@your-cluster.cluster-xxxx.us-east-1.rds.amazonaws.com:5432/warden`
    (TLS is auto-enabled for non-localhost hosts; for strict verification, attach
    the RDS CA bundle and set `PGSSLMODE=verify-full`).
 5. Apply the schema: `DATABASE_URL=... npm run migrate`.
@@ -34,7 +34,7 @@ console page showing the Aurora **Serverless v2** cluster.
 
 1. Push this repo to GitHub and **Import** it into Vercel (Next.js auto-detected).
 2. Project → **Settings → Environment Variables**: set `DATABASE_URL`,
-   `NIGHTSHIFT_MODE=live`, and the keys from the sections below.
+   `WARDEN_MODE=live`, and the keys from the sections below.
 3. Deploy. Note the **production URL** and your **Vercel Team ID**
    (Team Settings → General) — both are submission requirements.
 4. Drive the orchestrator on a schedule — add to `vercel.json`:
@@ -81,7 +81,7 @@ instead of sent.
 
 ## 6. Flip the switch
 
-Set `NIGHTSHIFT_MODE=live`. Any capability whose secret is missing **degrades
+Set `WARDEN_MODE=live`. Any capability whose secret is missing **degrades
 gracefully back to simulation** for that capability only — so a partially
 configured environment still runs end to end.
 
@@ -114,7 +114,7 @@ wire and test. Until then, live incidents that hit them will safely escalate.
 5. **Production health watch.** `verifyProdHealth` fails closed in live (escalates
    for manual confirmation). Implement the real post-deploy error-rate comparison
    to enable autonomous resolve / auto-rollback.
-6. **Auth.** approve / rollback / tick accept an optional `NIGHTSHIFT_API_SECRET`
+6. **Auth.** approve / rollback / tick accept an optional `WARDEN_API_SECRET`
    (set it!). Full multi-tenant auth — deriving the approver identity from an
    authenticated session instead of the request body — is still PLAN §11 work.
 7. **Live agent adapters are untested** (no keys here): validate Claude's patch

@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- Nightshift core schema (PLAN §9).
+-- Warden core schema (PLAN §9).
 --
 -- This is the deliberate state machine + append-only event log + pgvector
 -- incident memory that the whole product is built around. It runs identically

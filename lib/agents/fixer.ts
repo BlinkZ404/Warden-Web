@@ -9,7 +9,7 @@ import { createBranch, applyEdit, commitAll } from "@/lib/adapters/workspace";
 import type { Fixer, FixerContext, FixProposal } from "@/lib/agents/types";
 
 function branchName(incidentId: string): string {
-  return `nightshift/fix-${incidentId.slice(0, 8)}`;
+  return `warden/fix-${incidentId.slice(0, 8)}`;
 }
 
 function culprit(ctx: FixerContext): { file: string; path: string } {

@@ -65,7 +65,7 @@ export default function Approve() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-5 px-5 py-8">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium uppercase tracking-widest text-[var(--color-accent)]">
-          Nightshift
+          Warden
         </p>
         <EnableNotifications />
       </div>

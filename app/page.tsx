@@ -5,7 +5,7 @@ export default function Home() {
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-8 px-6 py-16">
       <div>
         <p className="text-sm font-medium tracking-widest text-[var(--color-accent)] uppercase">
-          Nightshift
+          Warden
         </p>
         <h1 className="mt-3 text-4xl font-semibold leading-tight">
           The on-call engineer you don&apos;t have.

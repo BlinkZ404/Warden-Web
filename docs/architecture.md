@@ -1,6 +1,6 @@
-# Nightshift — Architecture (as built)
+# Warden — Architecture (as built)
 
-Nightshift is a **control plane** above commodity pieces (Sentry, Claude, Codex,
+Warden is a **control plane** above commodity pieces (Sentry, Claude, Codex,
 Vercel). The product is the orchestration, the safety model, and the database —
 not any single integration.
 
@@ -114,7 +114,7 @@ flowchart LR
 The principled line: **simulate what needs accounts/keys; keep the safety-critical
 verification real.**
 
-| Capability | Simulation (default, offline) | Live (`NIGHTSHIFT_MODE=live` + key) |
+| Capability | Simulation (default, offline) | Live (`WARDEN_MODE=live` + key) |
 |---|---|---|
 | Error source | synthetic Sentry events | real Sentry webhook + HMAC verify |
 | Fixer / Reviewer | deterministic, real git edits + real diff analysis | Anthropic / OpenAI APIs |

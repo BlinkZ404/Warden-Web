@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "type": "module",
-  "description": "Sample 'vibe-coded' checkout service that Nightshift watches. Zero dependencies so the pipeline can verify it offline.",
+  "description": "Sample 'vibe-coded' checkout service that Warden watches. Zero dependencies so the pipeline can verify it offline.",
   "scripts": {
     "start": "node server.js",
     "test": "node --test"

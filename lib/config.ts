@@ -1,7 +1,7 @@
 /**
  * Central configuration + run-mode resolution.
  *
- * Nightshift runs in one of two modes:
+ * Warden runs in one of two modes:
  *
  *  - `simulation` (default): external SaaS that needs accounts/keys is simulated
  *    — Sentry as an error source, Vercel as a host, push-notification delivery,
@@ -28,7 +28,7 @@ function str(name: string, fallback = ""): string {
   return process.env[name]?.trim() || fallback;
 }
 
-const mode: Mode = str("NIGHTSHIFT_MODE", "simulation") === "live" ? "live" : "simulation";
+const mode: Mode = str("WARDEN_MODE", "simulation") === "live" ? "live" : "simulation";
 
 // OpenAI-compatible agent providers (DeepSeek, GLM, OpenAI, Ollama, …). AGENT_*
 // is the default for every agent; FIXER_*/REVIEWER_*/INVESTIGATOR_* override it
@@ -65,7 +65,7 @@ export const config = {
 
   databaseUrl: str(
     "DATABASE_URL",
-    "postgres://nightshift:nightshift@localhost:5433/nightshift",
+    "postgres://warden:warden@localhost:5433/warden",
   ),
 
   targetRepoPath: str("TARGET_REPO_PATH", "./sample-app"),

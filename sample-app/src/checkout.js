@@ -2,7 +2,7 @@
 //
 // This is the kind of code an AI app builder ships: readable, mostly fine, with
 // one sharp edge that only certain inputs hit in production. The guarded version
-// here is correct; Nightshift's demo injects the unguarded edge into an isolated
+// here is correct; Warden's demo injects the unguarded edge into an isolated
 // workspace to reproduce the production crash.
 
 /**

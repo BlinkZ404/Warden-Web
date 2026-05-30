@@ -2,11 +2,11 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Nightshift",
+  title: "Warden",
   description:
     "The on-call engineer you don't have. Catches production errors, fixes them, verifies the fix, and waits for your one-tap approval before anything ships.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Nightshift",
+  applicationName: "Warden",
 };
 
 export const viewport: Viewport = {

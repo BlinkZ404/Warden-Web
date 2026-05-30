@@ -54,7 +54,7 @@ async function main() {
 
   await runMigrations();
 
-  console.log(`\n🌙 ${C.b("Nightshift")} ${C.dim("— simulation mode")}\n`);
+  console.log(`\n🛡️  ${C.b("Warden")} ${C.dim("— simulation mode")}\n`);
   console.log(`${C.b("[1] A production error fires")} ${C.dim("(Sentry → webhook)")}`);
   console.log(`    ${C.bad(bug.title)}`);
 
@@ -63,7 +63,7 @@ async function main() {
   );
   console.log(`    → incident ${C.accent(incidentId)} ${deduped ? C.dim("(deduped)") : "created"}\n`);
 
-  console.log(`${C.b("[2] Nightshift runs the pipeline…")}`);
+  console.log(`${C.b("[2] Warden runs the pipeline…")}`);
   await drainJobs("demo");
   console.log(`    ${await statusLine(incidentId)}`);
 

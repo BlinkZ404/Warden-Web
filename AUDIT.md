@@ -45,7 +45,7 @@ GO-LIVE.md) or **fail-open behaviors made fail-closed** here.
 ## Low
 | # | Finding | Disposition |
 |---|---|---|
-| L1 | approve/revert/tick routes unauthenticated | 🛡️ optional `NIGHTSHIFT_API_SECRET` gate (on when set); 📋 full auth = go-live |
+| L1 | approve/revert/tick routes unauthenticated | 🛡️ optional `WARDEN_API_SECRET` gate (on when set); 📋 full auth = go-live |
 | L2 | Live `verifyProdHealth` is a no-op that always returns healthy | 🛡️ live branch fails closed (escalate) until a real signal is wired |
 | L3 | `failed` is an unreachable terminal state | 📋 left as-is (harmless); noted |
 | L4 | SQL-guard tests only trivial cases | ✅ adversarial cases added (see M2) |

@@ -3,7 +3,7 @@
  *
  * The orchestrator never touches the real source tree. For each incident it
  * materializes an isolated copy of the target repo under
- * `.nightshift/workspaces/<incidentId>/`, seeded with a believable git history
+ * `.warden/workspaces/<incidentId>/`, seeded with a believable git history
  * (an import commit + the commit that "introduced" the bug). This gives:
  *
  *   - the Fixer a branch to work on (no merge, no deploy — PLAN §5.1),
@@ -22,7 +22,7 @@ import type { CodeEdit, SeededBug } from "@/lib/sim/bugs";
 
 const pexec = promisify(execFile);
 
-const WORKSPACES_ROOT = resolve(process.cwd(), ".nightshift", "workspaces");
+const WORKSPACES_ROOT = resolve(process.cwd(), ".warden", "workspaces");
 
 export interface Workspace {
   incidentId: string;
@@ -46,7 +46,7 @@ async function git(root: string, args: string[]): Promise<string> {
 
 async function gitInit(root: string) {
   await git(root, ["init", "-b", "main"]);
-  await git(root, ["config", "user.email", "ci@nightshift.dev"]);
+  await git(root, ["config", "user.email", "ci@warden.dev"]);
   await git(root, ["config", "user.name", "checkout-service ci"]);
   await git(root, ["config", "commit.gpgsign", "false"]);
 }

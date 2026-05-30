@@ -21,5 +21,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", ".nightshift", "sample-app/**/node_modules"]
+  "exclude": ["node_modules", ".warden", "sample-app/**/node_modules"]
 }

@@ -20,7 +20,7 @@ const server = createServer((req, res) => {
         res.end(JSON.stringify({ ...priced, total }));
       } catch (err) {
         // 👇 In production, the Sentry SDK reports this exception, which is what
-        //    wakes Nightshift up.
+        //    wakes Warden up.
         console.error("checkout failed:", err);
         res.writeHead(500, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: String(err && err.message) }));

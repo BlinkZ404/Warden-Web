@@ -8,8 +8,8 @@ const ICON_SVG =
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Nightshift",
-    short_name: "Nightshift",
+    name: "Warden",
+    short_name: "Warden",
     description: "One-tap approval for production fixes.",
     start_url: "/dashboard",
     display: "standalone",

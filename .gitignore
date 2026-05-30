@@ -12,7 +12,7 @@ next-env.d.ts
 /build
 
 # runtime / scratch
-/.nightshift/
+/.warden/
 *.log
 npm-debug.log*
 

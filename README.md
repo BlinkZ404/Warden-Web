@@ -1,4 +1,4 @@
-# 🌙 Nightshift
+# 🌙 Warden
 
 **The on-call engineer you don't have.** It catches production errors, fixes
 them, checks itself, and waits for your one-tap approval before anything ships.
@@ -44,7 +44,7 @@ simulation mode against a real Postgres**, with a green §13 acceptance test:
 **Simulation mode** mocks only what needs accounts/keys (Sentry, Vercel, push
 delivery, the LLMs). The **safety-critical verification stays real** — it
 genuinely runs `node --test` and a reproduction script against the patched code.
-Flip to **live** by setting `NIGHTSHIFT_MODE=live` and adding keys (see
+Flip to **live** by setting `WARDEN_MODE=live` and adding keys (see
 [GO-LIVE.md](GO-LIVE.md)).
 
 ## Quick start (zero external accounts)
@@ -109,7 +109,7 @@ lib/
   repo/  db/               typed repositories + Postgres access
   sim/bugs.ts              seeded-bug catalog (real inject/fix code edits)
 migrations/                §9 schema (idempotent) + runtime tables
-sample-app/                zero-dependency "checkout" app Nightshift watches
+sample-app/                zero-dependency "checkout" app Warden watches
 scripts/                   migrate · seed · worker · demo
 test/                      state machine · workspace · orchestrator · policy · §13 e2e
 ```

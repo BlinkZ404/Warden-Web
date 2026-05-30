@@ -1,8 +1,8 @@
-# Nightshift — Build Plan
+# Warden — Build Plan
 
 **Tagline:** The on-call engineer you don't have. It catches production errors, fixes them, checks itself, and waits for your one-tap approval before anything ships.
 
-**Working name:** Nightshift. Swappable via find/replace. Alternatives: Greenlight, Keel, Quorum, Backstop.
+**Working name:** Warden. Swappable via find/replace. Alternatives: Greenlight, Keel, Quorum, Backstop.
 
 > Implementation status note (kept in sync with the code): the full incident
 > pipeline (M0–M11) is built and verified in **simulation mode** against a real
@@ -25,7 +25,7 @@ Today their options are: monitoring tools that observe but don't fix; coding age
 
 ## 2. What it does (plain version)
 
-An error fires in production → Nightshift gets pinged → it diagnoses the cause and writes a fix → a second AI independently checks the fix against the code's history → the fix is deployed to a preview and verified (tests pass, the error stops, no new errors) → the founder gets a phone notification with a plain-English summary → one tap to ship, one tap to revert.
+An error fires in production → Warden gets pinged → it diagnoses the cause and writes a fix → a second AI independently checks the fix against the code's history → the fix is deployed to a preview and verified (tests pass, the error stops, no new errors) → the founder gets a phone notification with a plain-English summary → one tap to ship, one tap to revert.
 
 ## 3. What makes it different
 
