@@ -36,6 +36,14 @@ export interface SeededBug {
   reproScenario: string;
   /** Input that reproduces the crash. */
   triggeringInput: unknown;
+  /**
+   * Generic reproduction descriptor — the shape a live Sentry frame (the culprit
+   * `export`) + captured request (the positional `args`) yields. When present,
+   * the gate reproduces the error via reproduce.js `--call` mode instead of a
+   * named scenario, exercising the engine that live incidents will use. In sim
+   * it's sourced from this catalog; live event-extraction is still pending.
+   */
+  repro?: { module: string; export: string; args: unknown[] };
   /** Turns correct code → buggy (production state). */
   inject: CodeEdit;
   /** Turns buggy code → fixed. */
@@ -85,6 +93,21 @@ export const SEEDED_BUGS: SeededBug[] = [
       items: [
         { sku: "MUG", price: { amount: 1000 }, quantity: 1 },
         { sku: "FREE-GIFT", quantity: 1 },
+      ],
+    },
+    // Generic-path descriptor (the live seam). `args` is always a positional
+    // argument list — the cart is one object, so it's wrapped: [cart].
+    repro: {
+      module: "src/checkout.js",
+      export: "computeCheckoutTotal",
+      args: [
+        {
+          taxRate: 0.1,
+          items: [
+            { sku: "MUG", price: { amount: 1000 }, quantity: 1 },
+            { sku: "FREE-GIFT", quantity: 1 },
+          ],
+        },
       ],
     },
     inject: { file: "src/checkout.js", find: CHECKOUT_GOOD, replace: CHECKOUT_BAD },

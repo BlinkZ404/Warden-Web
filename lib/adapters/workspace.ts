@@ -277,6 +277,33 @@ export async function reproduce(
   ]);
 }
 
+/**
+ * Generic reproduction descriptor — the culprit export + positional args, the
+ * shape a live Sentry frame + captured request yields. `args` is ALWAYS a
+ * positional argument list (wrap a single object as `[obj]`).
+ */
+export interface ReproDescriptor {
+  module: string; // repo-relative, e.g. "src/checkout.js"
+  export: string; // the culprit function
+  args: unknown[]; // positional arguments
+}
+
+/**
+ * Reproduce via the generic `--call` path: invoke the culprit export directly,
+ * no named scenario required. This is the engine real (catalog-less) incidents
+ * run through. code 0 = the error stopped, 1 = it still reproduces.
+ */
+export async function reproduceCall(
+  root: string,
+  descriptor: ReproDescriptor,
+): Promise<RunResult> {
+  return run(root, "node", [
+    join("scripts", "reproduce.js"),
+    "--call",
+    JSON.stringify(descriptor),
+  ]);
+}
+
 /** Best-effort cleanup of a workspace. */
 export async function destroyWorkspace(incidentId: string): Promise<void> {
   await rm(workspacePath(incidentId), { recursive: true, force: true });

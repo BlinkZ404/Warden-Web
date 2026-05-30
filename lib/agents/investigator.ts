@@ -50,6 +50,9 @@ const simInvestigator: Investigator = {
           errorType: bug.errorType,
           errorMessage: bug.errorMessage,
           culpritFile: bug.culpritFile,
+          // The reproduction descriptor the gate replays (live seam: this is
+          // what an event-extraction step would populate from a Sentry frame).
+          ...(bug.repro ? { repro: bug.repro } : {}),
           source: "sentry-mcp (simulated)",
         },
       };

@@ -9,6 +9,7 @@ import {
   commitAll,
   runTests,
   reproduce,
+  reproduceCall,
   diffStat,
   fileHistory,
   destroyWorkspace,
@@ -50,6 +51,30 @@ describe("workspace adapter — real inject/fix/verify", () => {
     // "recently changed on main" signal for the Reviewer
     const hist = await fileHistory(ws.root, "src/checkout.js", { ref: "main" });
     expect(hist[0].subject).toContain("multi-currency");
+
+    await destroyWorkspace(id);
+  });
+
+  it("generic --call reproduction: fail before fix, pass after (no named scenario)", async () => {
+    // The live-seam engine: reproduce straight from a {module, export, args}
+    // descriptor — the shape a Sentry frame + captured request yields — with no
+    // hardcoded scenario. Proves the gate can verify a catalog-less incident.
+    const bug = getBugByKey("checkout-missing-price")!;
+    const descriptor = bug.repro!;
+    const id = "wstest-call";
+    const ws = await prepareWorkspace(id, bug);
+
+    // buggy production main: the captured call throws the original error
+    const before = await reproduceCall(ws.root, descriptor);
+    expect(before.code).toBe(1);
+    expect(before.stderr).toContain("TypeError");
+
+    await createBranch(ws.root, "warden/fix");
+    await applyEdit(ws.root, bug.fix);
+    await commitAll(ws.root, "fix: handle line items without a price");
+
+    // fixed: the same generic call stops throwing
+    expect((await reproduceCall(ws.root, descriptor)).code).toBe(0);
 
     await destroyWorkspace(id);
   });

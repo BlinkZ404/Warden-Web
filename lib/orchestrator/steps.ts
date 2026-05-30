@@ -45,11 +45,13 @@ import {
   workspacePath,
   runTests,
   reproduce,
+  reproduceCall,
   createBranch,
   applyPatch,
   commitAll,
   diffText,
 } from "@/lib/adapters/workspace";
+import type { ReproDescriptor } from "@/lib/adapters/workspace";
 import type { FixAttempt } from "@/lib/db/types";
 import {
   deployPreview,
@@ -325,9 +327,19 @@ async function stepVerifying(incident: Incident) {
     // `node --test` exits 0 even with ZERO test files — never treat that as a pass.
     const testPassed = tests.code === 0 && testsCollected > 0;
 
+    // Reproduce the original error against the fixed tree. Prefer the generic
+    // descriptor carried on the investigation (the live seam: culprit export +
+    // captured args) and fall back to the seeded catalog scenario. Either way
+    // the signal is real — did the production-failing call stop throwing?
+    const inv = await latestInvestigation(incident.id);
+    const descriptor = (inv?.context as { repro?: ReproDescriptor } | null)?.repro;
     let errorRecurred = false;
     let reproChecked = false;
-    if (bug) {
+    if (descriptor) {
+      const repro = await reproduceCall(root, descriptor);
+      errorRecurred = repro.code !== 0;
+      reproChecked = true;
+    } else if (bug) {
       const repro = await reproduce(root, bug.reproScenario, bug.triggeringInput);
       errorRecurred = repro.code !== 0;
       reproChecked = true;
