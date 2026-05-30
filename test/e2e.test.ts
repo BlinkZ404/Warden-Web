@@ -134,6 +134,28 @@ describe("§13 acceptance — end to end (simulation mode)", () => {
     await destroyWorkspace(incidentId);
   });
 
+  it("human reject → dismissed; nothing ships and it isn't resurrected", async () => {
+    const { incidentId } = await fire("checkout-missing-price");
+    await drainJobs();
+    expect((await getIncident(incidentId))!.status).toBe("awaiting_approval");
+
+    await recordApproval({
+      incidentId,
+      decision: "reject",
+      decidedBy: "founder",
+      channel: "web",
+    });
+    expect((await getIncident(incidentId))!.status).toBe("dismissed");
+
+    const fa = await latestFixAttempt(incidentId);
+    expect((await latestDeployment(fa!.id))!.promoted_at).toBeNull();
+
+    await drainJobs(); // must not resurrect a dismissed incident
+    expect((await getIncident(incidentId))!.status).toBe("dismissed");
+
+    await destroyWorkspace(incidentId);
+  });
+
   it("dedup: a duplicate fingerprint does not open a second incident", async () => {
     const a = await fire("discount-unknown-code");
     const b = await fire("discount-unknown-code");
