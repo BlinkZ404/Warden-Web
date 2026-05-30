@@ -6,6 +6,7 @@
  * differ only by DATABASE_URL. No ORM — the schema is the product (PLAN §9), so
  * we keep the SQL visible.
  */
+import { readFileSync } from "node:fs";
 import pg from "pg";
 import { config } from "@/lib/config";
 
@@ -17,10 +18,33 @@ const { Pool } = pg;
 
 let pool: pg.Pool | null = null;
 
-function needsSsl(url: string): boolean {
-  if (/localhost|127\.0\.0\.1/.test(url)) return false;
-  if (process.env.PGSSL === "disable") return false;
-  return true; // Aurora and other managed Postgres require TLS.
+function isLocalHost(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    return h === "localhost" || h === "127.0.0.1" || h === "::1";
+  } catch {
+    return false; // unparseable → treat as remote (secure)
+  }
+}
+
+/**
+ * TLS config for the pool. Secure by default for remote hosts (Aurora):
+ *   - PGSSL=disable                  → no TLS (local only)
+ *   - localhost/127.0.0.1/::1        → no TLS (local dev)
+ *   - PGSSLMODE=verify-ca|verify-full + PGSSLROOTCERT → verify against that CA
+ *     (the RDS CA bundle); without PGSSLROOTCERT, verify against system CAs
+ *   - PGSSL_INSECURE=1               → explicit opt-out (encrypt, don't verify)
+ *   - otherwise (remote)             → verify against system CAs (rejectUnauthorized:true)
+ */
+function resolveSsl(url: string): pg.PoolConfig["ssl"] {
+  if (process.env.PGSSL === "disable" || isLocalHost(url)) return undefined;
+  const mode = process.env.PGSSLMODE;
+  const caPath = process.env.PGSSLROOTCERT;
+  if ((mode === "verify-ca" || mode === "verify-full") && caPath) {
+    return { rejectUnauthorized: true, ca: readFileSync(caPath, "utf8") };
+  }
+  if (process.env.PGSSL_INSECURE === "1") return { rejectUnauthorized: false };
+  return { rejectUnauthorized: true };
 }
 
 export function getPool(): pg.Pool {
@@ -28,7 +52,7 @@ export function getPool(): pg.Pool {
     pool = new Pool({
       connectionString: config.databaseUrl,
       max: 10,
-      ssl: needsSsl(config.databaseUrl) ? { rejectUnauthorized: false } : undefined,
+      ssl: resolveSsl(config.databaseUrl),
     });
     pool.on("error", (err) => {
       // A pooled idle client errored; log and let pg recycle it.

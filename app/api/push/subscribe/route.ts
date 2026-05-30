@@ -10,6 +10,28 @@ export async function GET() {
   return Response.json({ publicKey: config.push.publicKey || null });
 }
 
+/**
+ * Reject endpoints that aren't public HTTPS push services. The stored endpoint
+ * later becomes an outbound request in lib/notify, so an attacker-supplied
+ * internal/loopback URL would be a (blind) SSRF vector.
+ */
+function isAllowedPushEndpoint(endpoint: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost")) return false;
+  if (host === "::1" || host === "169.254.169.254") return false;
+  if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return false;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
+  if (host.startsWith("fc") || host.startsWith("fd")) return false; // unique-local IPv6
+  return true;
+}
+
 export async function POST(req: Request) {
   const sub = (await req.json().catch(() => null)) as {
     endpoint?: string;
@@ -18,6 +40,9 @@ export async function POST(req: Request) {
   } | null;
   if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
     return Response.json({ error: "invalid subscription" }, { status: 400 });
+  }
+  if (!isAllowedPushEndpoint(sub.endpoint)) {
+    return Response.json({ error: "endpoint not allowed" }, { status: 400 });
   }
   await saveSubscription({
     endpoint: sub.endpoint,

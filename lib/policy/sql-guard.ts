@@ -21,20 +21,43 @@ export type StatementKind =
   | "ddl"
   | "other";
 
-const DDL_RE = /^\s*(drop|truncate|alter|create|grant|revoke|comment)\b/i;
+const DDL_RE = /^(drop|truncate|alter|create|grant|revoke|comment)\b/i;
+const WRITE_IN_CTE = /\b(insert|update|delete|merge)\b/i;
+
+/** Remove -- line comments and block comments so they can't hide the real verb. */
+function stripComments(sql: string): string {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, " ");
+}
+
+/** Non-empty statements, splitting on `;` outside single-quoted string literals. */
+function splitStatements(sql: string): string[] {
+  const noStrings = sql.replace(/'(?:[^']|'')*'/g, "''");
+  return noStrings
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export function classify(sql: string): StatementKind {
-  const s = sql.trim();
-  if (/^\s*(select|with)\b/i.test(s)) return "select";
-  if (/^\s*insert\b/i.test(s)) return "insert";
-  if (/^\s*update\b/i.test(s)) return "update";
-  if (/^\s*delete\b/i.test(s)) return "delete";
+  const s = stripComments(sql).trim();
+  if (/^with\b/i.test(s)) {
+    // A CTE that contains a write (WITH t AS (DELETE ...)) is a write, not a read.
+    return WRITE_IN_CTE.test(s) ? "other" : "select";
+  }
+  if (/^select\b/i.test(s)) return "select";
+  if (/^insert\b/i.test(s)) return "insert";
+  if (/^update\b/i.test(s)) return "update";
+  if (/^delete\b/i.test(s)) return "delete";
   if (DDL_RE.test(s)) return "ddl";
   return "other";
 }
 
 export function hasWhereClause(sql: string): boolean {
-  return /\bwhere\b/i.test(sql);
+  const s = stripComments(sql);
+  if (!/\bwhere\b/i.test(s)) return false;
+  // A tautological WHERE (1=1 / true) is not a real scope.
+  if (/\bwhere\s+(1\s*=\s*1|true)\b/i.test(s)) return false;
+  return true;
 }
 
 export class BlockedSqlError extends Error {
@@ -59,19 +82,32 @@ export interface GuardResult {
  * still requires dry-run + human approval + snapshot before execution.
  */
 export function guardMutation(sql: string): GuardResult {
+  // Fail closed on multiple statements (e.g. `SELECT 1; DELETE FROM orders`).
+  if (splitStatements(stripComments(sql)).length > 1) {
+    return { allowed: false, kind: "other", reason: "multiple statements are not allowed" };
+  }
   const kind = classify(sql);
-  if (kind === "select") return { allowed: true, kind };
-  if (kind === "ddl") {
-    return { allowed: false, kind, reason: "DDL / DROP / TRUNCATE is never auto-run" };
+  if (kind === "select" || kind === "insert") return { allowed: true, kind };
+  if (kind === "update" || kind === "delete") {
+    if (!hasWhereClause(sql)) {
+      return {
+        allowed: false,
+        kind,
+        reason: `unscoped ${kind.toUpperCase()} (no real WHERE clause)`,
+      };
+    }
+    return { allowed: true, kind };
   }
-  if ((kind === "update" || kind === "delete") && !hasWhereClause(sql)) {
-    return {
-      allowed: false,
-      kind,
-      reason: `unscoped ${kind.toUpperCase()} (no WHERE clause)`,
-    };
-  }
-  return { allowed: true, kind };
+  // DDL and anything unrecognized (comment-prefixed, writable CTE, EXPLAIN/COPY,
+  // …) fails CLOSED — only allow-listed shapes pass.
+  return {
+    allowed: false,
+    kind,
+    reason:
+      kind === "ddl"
+        ? "DDL / DROP / TRUNCATE is never auto-run"
+        : "unrecognized or non-allow-listed statement shape",
+  };
 }
 
 export function assertProposable(sql: string): GuardResult {

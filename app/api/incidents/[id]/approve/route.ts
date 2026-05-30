@@ -7,6 +7,7 @@
 import { recordApproval, ApprovalStateError } from "@/lib/approval";
 import { drainJobs } from "@/lib/orchestrator/runner";
 import { getIncident } from "@/lib/repo/incidents";
+import { checkApiSecret } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = checkApiSecret(req);
+  if (denied) return denied;
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as {
     decision?: "approve" | "reject";

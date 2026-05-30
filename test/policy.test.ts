@@ -24,6 +24,21 @@ describe("data-mutation guard (§10)", () => {
     expect(guardMutation("SELECT * FROM orders").allowed).toBe(true);
   });
 
+  it("fails CLOSED on comment / multi-statement / writable-CTE / tautology bypasses", () => {
+    expect(guardMutation("-- x\nDELETE FROM orders").allowed).toBe(false);
+    expect(guardMutation("/* x */ DELETE FROM orders").allowed).toBe(false);
+    expect(
+      guardMutation("WITH t AS (DELETE FROM orders RETURNING *) SELECT * FROM t").allowed,
+    ).toBe(false);
+    expect(guardMutation("SELECT 1; DELETE FROM orders").allowed).toBe(false);
+    expect(guardMutation("DELETE FROM orders WHERE 1=1").allowed).toBe(false);
+    expect(guardMutation("DELETE FROM orders WHERE true").allowed).toBe(false);
+    expect(guardMutation("EXPLAIN ANALYZE DELETE FROM orders").allowed).toBe(false);
+    // ...while legitimate shapes still pass
+    expect(guardMutation("UPDATE orders SET paid = true WHERE id = 7").allowed).toBe(true);
+    expect(guardMutation("SELECT * FROM orders WHERE id = 1").allowed).toBe(true);
+  });
+
   it("dry-run reports affected rows and rolls back (nothing persists)", async () => {
     await resetDatabase();
     const inc = await createIncident({ fingerprint: "fp-guard", title: "Guard test" });

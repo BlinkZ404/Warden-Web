@@ -3,6 +3,7 @@
  * Reuses the same Vercel instant-rollback adapter as the automatic path.
  */
 import { recordRevert, RevertStateError } from "@/lib/revert";
+import { checkApiSecret } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = checkApiSecret(req);
+  if (denied) return denied;
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as { decidedBy?: string };
   try {

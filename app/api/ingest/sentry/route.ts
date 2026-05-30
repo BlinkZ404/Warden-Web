@@ -8,7 +8,7 @@
 import { normalizeSentryWebhook, verifySignature } from "@/lib/adapters/sentry";
 import { ingestError } from "@/lib/ingest";
 import { drainJobs } from "@/lib/orchestrator/runner";
-import { config, live } from "@/lib/config";
+import { config } from "@/lib/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +16,13 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const raw = await req.text();
 
-  if (live.sentry()) {
+  // In live mode the public webhook is HARD-gated: a missing secret is a
+  // misconfiguration (don't silently accept unsigned payloads), and every
+  // request must carry a valid signature. (Simulation accepts synthetic events.)
+  if (config.isLive) {
+    if (!config.sentry.clientSecret) {
+      return Response.json({ error: "sentry ingress misconfigured" }, { status: 503 });
+    }
     const sig = req.headers.get("sentry-hook-signature");
     if (!verifySignature(raw, sig, config.sentry.clientSecret)) {
       return Response.json({ error: "invalid signature" }, { status: 401 });
