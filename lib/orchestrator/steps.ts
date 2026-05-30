@@ -44,7 +44,12 @@ import {
   workspacePath,
   runTests,
   reproduce,
+  createBranch,
+  applyPatch,
+  commitAll,
+  diffText,
 } from "@/lib/adapters/workspace";
+import type { FixAttempt } from "@/lib/db/types";
 import {
   deployPreview,
   promoteToProd,
@@ -69,6 +74,35 @@ async function sentryContextFor(incident: Incident): Promise<SentryContext> {
     culpritFile: p.culpritFile,
     service: incident.service,
   };
+}
+
+/**
+ * Ensure the per-incident workspace exists with "production main" (the buggy
+ * state). Rebuilds it if a reclaimed job landed on a fresh instance (empty disk).
+ */
+async function ensureMainWorkspace(incident: Incident): Promise<void> {
+  if (await workspaceExists(incident.id)) return;
+  await prepareWorkspace(incident.id, getBugByFingerprint(incident.fingerprint));
+  await logEvent(incident.id, "workspace", "system", { note: "workspace rebuilt (main)" });
+}
+
+/**
+ * Ensure the workspace exists AND the fix branch is reconstructed from the
+ * persisted patch — so review/verify can resume on a fresh instance instead of
+ * escalating (PLAN §6: stateless, resumable).
+ */
+async function ensureFixWorkspace(incident: Incident, fa: FixAttempt): Promise<void> {
+  if (await workspaceExists(incident.id)) return;
+  const root = workspacePath(incident.id);
+  await prepareWorkspace(incident.id, getBugByFingerprint(incident.fingerprint));
+  if (fa.branch) await createBranch(root, fa.branch);
+  if (fa.diff) {
+    await applyPatch(root, fa.diff);
+    await commitAll(root, `fix: rebuilt ${fa.branch ?? "fix branch"}`);
+  }
+  await logEvent(incident.id, "workspace", "system", {
+    note: "workspace rebuilt (fix branch from persisted patch)",
+  });
 }
 
 // ── per-state steps ──────────────────────────────────────────────────────────
@@ -154,12 +188,16 @@ async function stepFixProposed(incident: Incident) {
   if (!fa) {
     const inv = await latestInvestigation(incident.id);
     if (!inv) throw new Error("fix step: investigation missing");
+    await ensureMainWorkspace(incident); // rebuild if a reclaimed job lost the disk
     const fixer = getFixer();
+    const root = workspacePath(incident.id);
     const proposal = await fixer.propose({
       incident,
       investigation: inv,
-      workspaceRoot: workspacePath(incident.id),
+      workspaceRoot: root,
     });
+    // Persist the patch so the workspace can be rebuilt from DB state later.
+    const diff = await diffText(root, "main", proposal.branch);
     fa = await createFixAttempt({
       incident_id: incident.id,
       agent: fixer.name,
@@ -167,6 +205,7 @@ async function stepFixProposed(incident: Incident) {
       commit_sha: proposal.commitSha,
       diff_summary: proposal.diffSummary,
       files_changed: proposal.filesChanged,
+      diff,
     });
     await bumpScorecard(fixer.name, "fixer", { attempts: 1 });
     await logAgentAction(incident.id, fixer.name, "proposed_fix", {
@@ -182,6 +221,7 @@ async function stepFixProposed(incident: Incident) {
 async function stepUnderReview(incident: Incident) {
   const fa = await latestFixAttempt(incident.id);
   if (!fa) throw new Error("review step: fix attempt missing");
+  await ensureFixWorkspace(incident, fa); // resume on a fresh instance
 
   let review = await latestReview(fa.id);
   if (!review) {
@@ -228,6 +268,7 @@ async function stepUnderReview(incident: Incident) {
 async function stepVerifying(incident: Incident) {
   const fa = await latestFixAttempt(incident.id);
   if (!fa) throw new Error("verify step: fix attempt missing");
+  await ensureFixWorkspace(incident, fa); // resume on a fresh instance
 
   let v = await latestVerification(fa.id);
   if (!v) {

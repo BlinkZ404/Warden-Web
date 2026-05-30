@@ -62,6 +62,7 @@ export interface FixAttempt {
   diff_summary: string | null;
   files_changed: unknown | null;
   status: string;
+  diff: string | null; // unified patch (main..branch) — lets the workspace be rebuilt
   created_at: Date;
 }
 

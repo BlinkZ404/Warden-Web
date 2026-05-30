@@ -117,6 +117,18 @@ export async function createBranch(root: string, branch: string): Promise<void> 
   await git(root, ["checkout", "-B", branch]);
 }
 
+/** Apply a unified diff (used to rebuild a fix branch from the persisted patch). */
+export async function applyPatch(root: string, patch: string): Promise<void> {
+  if (!patch.trim()) return;
+  const patchFile = join(root, ".ns-rebuild.patch");
+  await writeFile(patchFile, patch.endsWith("\n") ? patch : patch + "\n", "utf8");
+  try {
+    await git(root, ["apply", "--whitespace=nowarn", ".ns-rebuild.patch"]);
+  } finally {
+    await rm(patchFile, { force: true });
+  }
+}
+
 export async function commitAll(root: string, message: string): Promise<string> {
   await git(root, ["add", "-A"]);
   // Tolerate a clean tree on idempotent re-runs (the edit was already applied +

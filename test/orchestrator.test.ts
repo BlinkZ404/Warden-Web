@@ -12,7 +12,7 @@ import {
 } from "@/lib/repo/artifacts";
 import { query } from "@/lib/db/client";
 import { getBugByKey } from "@/lib/sim/bugs";
-import { destroyWorkspace } from "@/lib/adapters/workspace";
+import { destroyWorkspace, workspaceExists } from "@/lib/adapters/workspace";
 
 async function countBy(table: string, col: string, id: string): Promise<number> {
   const rows = await query<{ n: number }>(
@@ -114,6 +114,30 @@ describe("orchestrator resumability + idempotency (M3)", () => {
     // failed deterministic gate.
     expect((await getIncident(incidentId))!.status).toBe("escalated");
     expect(await latestApproval(incidentId)).toBeNull();
+
+    await destroyWorkspace(incidentId);
+  });
+
+  it("rebuilds a lost workspace from the persisted patch and resumes (cross-instance crash safety)", async () => {
+    const { incidentId } = await fire("checkout-missing-price");
+
+    for (let i = 0; i < 20; i++) {
+      const s = (await getIncident(incidentId))!.status;
+      if (s === "under_review") break;
+      await advanceIncident(incidentId);
+    }
+    expect((await getIncident(incidentId))!.status).toBe("under_review");
+
+    // Simulate the worker dying and the job being reclaimed on a fresh instance
+    // with an empty disk.
+    await destroyWorkspace(incidentId);
+    expect(await workspaceExists(incidentId)).toBe(false);
+
+    // Resume: it must rebuild the workspace from DB state and reach the gate,
+    // NOT escalate.
+    const final = await runIncidentToBoundary(incidentId);
+    expect(final).toBe("awaiting_approval");
+    expect(await workspaceExists(incidentId)).toBe(true);
 
     await destroyWorkspace(incidentId);
   });

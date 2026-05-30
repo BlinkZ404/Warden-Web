@@ -42,12 +42,13 @@ export async function createFixAttempt(input: {
   commit_sha: string;
   diff_summary: string;
   files_changed: unknown;
+  diff?: string;
   status?: string;
 }): Promise<FixAttempt> {
   return (await queryOne<FixAttempt>(
     `INSERT INTO fix_attempts
-       (incident_id, agent, branch, commit_sha, diff_summary, files_changed, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+       (incident_id, agent, branch, commit_sha, diff_summary, files_changed, status, diff)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
     [
       input.incident_id,
       input.agent ?? "claude",
@@ -56,6 +57,7 @@ export async function createFixAttempt(input: {
       input.diff_summary,
       JSON.stringify(input.files_changed),
       input.status ?? "open",
+      input.diff ?? null,
     ],
   ))!;
 }
