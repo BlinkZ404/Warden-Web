@@ -338,6 +338,18 @@ async function stepDeploying(incident: Incident) {
   const fa = await latestFixAttempt(incident.id);
   if (!fa) throw new Error("deploy step: fix attempt missing");
   const dep = await latestDeployment(fa.id);
+
+  // Idempotent: if this deployment was already promoted (a crash-retry, or a
+  // racing worker got here first), do NOT promote again — just advance. Prevents
+  // a double production promotion (PLAN §5 reversibility / no duplicate ship).
+  if (dep?.promoted_at) {
+    await transition(incident.id, "verifying_prod", "system", {
+      prodUrl: dep.prod_url,
+      note: "already promoted",
+    });
+    return;
+  }
+
   const promo = await promoteToProd(dep?.deployment_id ?? `dpl_sim_${incident.id.slice(0, 8)}`);
   if (dep) await markDeploymentPromoted(dep.id, promo.prodUrl);
   await logEvent(incident.id, "deploy", "system", {
@@ -458,10 +470,14 @@ export async function advanceIncident(incidentId: string): Promise<AdvanceResult
  */
 export async function runIncidentToBoundary(
   incidentId: string,
-  opts: { maxSteps?: number } = {},
+  opts: { maxSteps?: number; heartbeat?: () => Promise<boolean> } = {},
 ): Promise<Incident["status"]> {
   const maxSteps = opts.maxSteps ?? 40;
   for (let i = 0; i < maxSteps; i++) {
+    if (opts.heartbeat && !(await opts.heartbeat())) {
+      // Lost our lease — another worker now owns this job. Stop cleanly.
+      return (await getIncident(incidentId))!.status;
+    }
     const current = await getIncident(incidentId);
     if (!current) throw new Error("incident vanished");
     if (isBoundary(current.status)) return current.status;

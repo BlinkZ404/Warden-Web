@@ -9,6 +9,7 @@ import {
   claimNext,
   completeJob,
   failJob,
+  heartbeat,
   reclaimStale,
 } from "@/lib/repo/jobs";
 import { runIncidentToBoundary } from "@/lib/orchestrator/steps";
@@ -35,8 +36,12 @@ export async function drainJobs(
     processed++;
 
     try {
-      await runIncidentToBoundary(job.incident_id);
-      await completeJob(job.id);
+      // Heartbeat the lease between steps so a long-running job isn't reclaimed
+      // out from under us; bail if we lose the lease to another worker.
+      await runIncidentToBoundary(job.incident_id, {
+        heartbeat: () => heartbeat(job.id, workerId),
+      });
+      await completeJob(job.id, workerId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await logError(job.incident_id, "system", "pipeline step failed", { error: msg });
@@ -50,7 +55,7 @@ export async function drainJobs(
           });
         }
       }
-      await failJob(job.id, msg);
+      await failJob(job.id, workerId, msg);
     }
   }
 

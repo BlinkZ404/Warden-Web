@@ -12,12 +12,32 @@ export async function enqueue(
   opts: { kind?: string; runAfterMs?: number } = {},
 ): Promise<Job> {
   const delayMs = Math.max(0, opts.runAfterMs ?? 0);
-  return (await queryOne<Job>(
-    `INSERT INTO jobs (incident_id, kind, run_after)
-     VALUES ($1, $2, now() + ($3 || ' milliseconds')::interval)
-     RETURNING *`,
-    [incidentId, opts.kind ?? "advance", String(delayMs)],
-  ))!;
+  // At most ONE active (queued|running) job per incident — also enforced by a
+  // partial unique index (migration 0003), which closes the concurrent-enqueue
+  // race. If one already exists, reuse it.
+  const active = await queryOne<Job>(
+    `SELECT * FROM jobs WHERE incident_id = $1 AND status IN ('queued','running')
+     ORDER BY id LIMIT 1`,
+    [incidentId],
+  );
+  if (active) return active;
+  try {
+    return (await queryOne<Job>(
+      `INSERT INTO jobs (incident_id, kind, run_after)
+       VALUES ($1, $2, now() + ($3 || ' milliseconds')::interval)
+       RETURNING *`,
+      [incidentId, opts.kind ?? "advance", String(delayMs)],
+    ))!;
+  } catch (e) {
+    if ((e as { code?: string }).code === "23505") {
+      return (await queryOne<Job>(
+        `SELECT * FROM jobs WHERE incident_id = $1 AND status IN ('queued','running')
+         ORDER BY id LIMIT 1`,
+        [incidentId],
+      ))!;
+    }
+    throw e;
+  }
 }
 
 /**
@@ -45,25 +65,45 @@ export async function claimNext(workerId: string): Promise<Job | null> {
   });
 }
 
-export async function completeJob(id: string): Promise<void> {
+/**
+ * Mark a job done — but ONLY if this worker still owns the lease. A worker that
+ * was dispossessed by reclaimStale (its lease expired and another worker took
+ * over) becomes a no-op instead of clobbering the usurper's job.
+ */
+export async function completeJob(id: string, workerId: string): Promise<void> {
   await query(
     `UPDATE jobs SET status = 'done', locked_by = NULL, locked_at = NULL, updated_at = now()
-     WHERE id = $1`,
-    [id],
+     WHERE id = $1 AND locked_by = $2 AND status = 'running'`,
+    [id, workerId],
   );
 }
 
-/** Record a failure; requeue with backoff until max_attempts, then mark failed. */
-export async function failJob(id: string, error: string): Promise<void> {
+/** Record a failure (ownership-scoped); requeue with backoff until max_attempts, then mark failed. */
+export async function failJob(id: string, workerId: string, error: string): Promise<void> {
   await query(
     `UPDATE jobs SET
        status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
        run_after = now() + (interval '5 seconds' * attempts),
        locked_by = NULL, locked_at = NULL,
-       last_error = $2, updated_at = now()
-     WHERE id = $1`,
-    [id, error.slice(0, 2000)],
+       last_error = $3, updated_at = now()
+     WHERE id = $1 AND locked_by = $2 AND status = 'running'`,
+    [id, workerId, error.slice(0, 2000)],
   );
+}
+
+/**
+ * Refresh a running job's lease. Returns false if the lease was lost (the row is
+ * no longer running under this worker) — the caller should stop work, because
+ * another worker has taken over.
+ */
+export async function heartbeat(id: string, workerId: string): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    `UPDATE jobs SET locked_at = now(), updated_at = now()
+     WHERE id = $1 AND locked_by = $2 AND status = 'running'
+     RETURNING id`,
+    [id, workerId],
+  );
+  return rows.length > 0;
 }
 
 export async function countQueued(): Promise<number> {
