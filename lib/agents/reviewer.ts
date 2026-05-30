@@ -1,6 +1,5 @@
-import { config, live } from "@/lib/config";
-import { extractJson, openaiText } from "@/lib/agents/json";
-import { httpError } from "@/lib/http";
+import { config } from "@/lib/config";
+import { chatJson, isConfigured } from "@/lib/agents/openai-compat";
 import {
   diffStat,
   diffText,
@@ -9,6 +8,18 @@ import {
 } from "@/lib/adapters/workspace";
 import type { ReviewVerdict } from "@/lib/db/types";
 import type { Reviewer, ReviewerContext, ReviewResult, ReviewFindings } from "@/lib/agents/types";
+
+// The Reviewer runs on its own configured provider (so the cross-check can use a
+// different model family than the Fixer), falling back to native OpenAI.
+function reviewerProvider() {
+  return isConfigured(config.agents.reviewer)
+    ? config.agents.reviewer
+    : {
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: config.agents.openaiApiKey,
+        model: config.agents.openaiModel,
+      };
+}
 
 /**
  * Reviewer = Codex (a different model family from the Fixer). The simulation
@@ -111,34 +122,15 @@ const liveReviewer: Reviewer = {
       ref: ctx.baseRef,
       limit: 5,
     });
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${config.agents.openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.agents.openaiModel,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              'You are an independent code reviewer checking a production hotfix. Reply with JSON {"verdict":"approve|reject|uncertain","summary":string,"notes":string[]}. Check scope, regressions, and whether the fix targets the error. Prefer "uncertain" over approving a risky/over-scoped change.',
-          },
-          {
-            role: "user",
-            content: `Diff:\n${diff}\n\nRecent history of the implicated file:\n${JSON.stringify(history)}`,
-          },
-        ],
-      }),
-    });
-    if (!res.ok) await httpError("openai", res);
-    const parsed = extractJson<{
+    const parsed = await chatJson<{
       verdict: ReviewVerdict;
       summary: string;
       notes: string[];
-    }>(openaiText(await res.json()));
+    }>(
+      reviewerProvider(),
+      'You are an independent code reviewer checking a production hotfix. Reply with a JSON object {"verdict":"approve|reject|uncertain","summary":string,"notes":string[]}. Check scope, regressions, and whether the fix targets the error. Prefer "uncertain" over approving a risky/over-scoped change.',
+      `Diff:\n${diff}\n\nRecent history of the implicated file:\n${JSON.stringify(history)}`,
+    );
     const stat = await diffStat(ctx.workspaceRoot, ctx.baseRef, ctx.headRef);
     return {
       verdict: parsed.verdict,
@@ -160,5 +152,8 @@ const liveReviewer: Reviewer = {
 };
 
 export function getReviewer(): Reviewer {
-  return live.reviewer() ? liveReviewer : simReviewer;
+  if (config.isLive && (isConfigured(config.agents.reviewer) || config.agents.openaiApiKey)) {
+    return liveReviewer;
+  }
+  return simReviewer;
 }

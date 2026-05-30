@@ -1,10 +1,26 @@
 import { readOnlyQuery } from "@/lib/db/client";
-import { config, live } from "@/lib/config";
+import { config } from "@/lib/config";
 import { extractJson, anthropicText } from "@/lib/agents/json";
+import { chatJson, isConfigured } from "@/lib/agents/openai-compat";
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 import type { Incident } from "@/lib/db/types";
 import type { Investigator, InvestigationResult, SentryContext } from "@/lib/agents/types";
+
+const INV_SYSTEM =
+  'You diagnose a production error. Respond ONLY with a JSON object {"rootCause": string, "confidence": number between 0 and 1, "culpritFile": string (repo-relative path)}.';
+
+function invUser(incident: Incident, sentry: SentryContext): string {
+  const culprit = sentry.culpritFile ? `\nSentry culprit file: ${sentry.culpritFile}` : "";
+  return `Title: ${incident.title}\nError: ${sentry.errorType}: ${sentry.errorMessage}\nService: ${incident.service}${culprit}`;
+}
+
+// The investigator shares the Fixer's provider unless its own is configured.
+function investigatorProvider() {
+  return isConfigured(config.agents.investigator)
+    ? config.agents.investigator
+    : config.agents.fixer;
+}
 
 /**
  * Read-only investigation (PLAN §5.5, §6): the investigator may read the
@@ -46,11 +62,38 @@ const simInvestigator: Investigator = {
   },
 };
 
+type InvJson = { rootCause: string; confidence: number; culpritFile?: string };
+
+function toResult(
+  parsed: InvJson,
+  ctx: Record<string, unknown>,
+  sentry: SentryContext,
+): InvestigationResult {
+  return {
+    rootCause: parsed.rootCause,
+    confidence: parsed.confidence,
+    context: { ...ctx, culpritFile: parsed.culpritFile, errorType: sentry.errorType },
+  };
+}
+
+/** Any OpenAI-compatible provider (DeepSeek, GLM, OpenAI, …) configured via env. */
+const compatInvestigator: Investigator = {
+  name: "agent",
+  async investigate(incident, sentry): Promise<InvestigationResult> {
+    const ctx = await readOnlyContext(incident);
+    const parsed = await chatJson<InvJson>(
+      investigatorProvider(),
+      INV_SYSTEM,
+      invUser(incident, sentry),
+    );
+    return toResult(parsed, ctx, sentry);
+  },
+};
+
+/** Native Anthropic Messages API. (Untested without keys.) */
 const liveInvestigator: Investigator = {
   name: "claude",
   async investigate(incident, sentry): Promise<InvestigationResult> {
-    // Live path: pull issue context via Sentry MCP + ask Claude for a root cause.
-    // (Untested without keys; gated behind live.fixer().)
     const ctx = await readOnlyContext(incident);
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -62,28 +105,17 @@ const liveInvestigator: Investigator = {
       body: JSON.stringify({
         model: config.agents.anthropicModel,
         max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: `You are diagnosing a production error. Respond ONLY with JSON {"rootCause": string, "confidence": number 0..1, "culpritFile": string}.\n\nTitle: ${incident.title}\nError: ${sentry.errorType}: ${sentry.errorMessage}\nService: ${incident.service}`,
-          },
-        ],
+        messages: [{ role: "user", content: `${INV_SYSTEM}\n\n${invUser(incident, sentry)}` }],
       }),
     });
     if (!res.ok) await httpError("anthropic", res);
-    const parsed = extractJson<{
-      rootCause: string;
-      confidence: number;
-      culpritFile?: string;
-    }>(anthropicText(await res.json()));
-    return {
-      rootCause: parsed.rootCause,
-      confidence: parsed.confidence,
-      context: { ...ctx, culpritFile: parsed.culpritFile, errorType: sentry.errorType },
-    };
+    const parsed = extractJson<InvJson>(anthropicText(await res.json()));
+    return toResult(parsed, ctx, sentry);
   },
 };
 
 export function getInvestigator(): Investigator {
-  return live.fixer() ? liveInvestigator : simInvestigator;
+  if (config.isLive && isConfigured(investigatorProvider())) return compatInvestigator;
+  if (config.isLive && config.agents.anthropicApiKey) return liveInvestigator;
+  return simInvestigator;
 }

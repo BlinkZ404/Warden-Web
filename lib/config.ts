@@ -30,6 +30,20 @@ function str(name: string, fallback = ""): string {
 
 const mode: Mode = str("NIGHTSHIFT_MODE", "simulation") === "live" ? "live" : "simulation";
 
+// OpenAI-compatible agent providers (DeepSeek, GLM, OpenAI, Ollama, …). AGENT_*
+// is the default for every agent; FIXER_*/REVIEWER_*/INVESTIGATOR_* override it
+// (e.g. run the Fixer and Reviewer on different providers for the cross-check).
+const agentDefault = {
+  baseUrl: str("AGENT_BASE_URL"),
+  apiKey: str("AGENT_API_KEY"),
+  model: str("AGENT_MODEL"),
+};
+const agentProvider = (prefix: string) => ({
+  baseUrl: str(`${prefix}_BASE_URL`, agentDefault.baseUrl),
+  apiKey: str(`${prefix}_API_KEY`, agentDefault.apiKey),
+  model: str(`${prefix}_MODEL`, agentDefault.model),
+});
+
 export const config = {
   mode,
   isSimulation: mode === "simulation",
@@ -50,6 +64,10 @@ export const config = {
     // on /v1/responses and 400 on /v1/chat/completions — see GO-LIVE.md.
     openaiModel: str("OPENAI_MODEL", "gpt-4.1"),
     embeddingApiKey: str("EMBEDDING_API_KEY"),
+    // OpenAI-compatible providers (preferred when set) — DeepSeek, GLM, etc.
+    fixer: agentProvider("FIXER"),
+    reviewer: agentProvider("REVIEWER"),
+    investigator: agentProvider("INVESTIGATOR"),
   },
 
   sentry: {
