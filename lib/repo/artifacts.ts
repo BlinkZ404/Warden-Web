@@ -79,22 +79,29 @@ export async function setFixAttemptStatus(
 }
 
 // ── reviews ──────────────────────────────────────────────────────────────--
+/**
+ * Idempotent: at most one review per (fix_attempt, reviewer). Returns the
+ * inserted row, or `null` if a row already existed (a concurrent/replayed panel
+ * run lost the race) — callers use that to avoid double-counting the scorecard.
+ */
 export async function createReview(input: {
   fix_attempt_id: string;
   reviewer_agent?: string;
   verdict: ReviewVerdict;
   findings: object; // serialized to jsonb; ReviewFindings or any object bag
-}): Promise<Review> {
-  return (await queryOne<Review>(
+}): Promise<Review | null> {
+  return queryOne<Review>(
     `INSERT INTO reviews (fix_attempt_id, reviewer_agent, verdict, findings)
-     VALUES ($1,$2,$3,$4) RETURNING *`,
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (fix_attempt_id, reviewer_agent) DO NOTHING
+     RETURNING *`,
     [
       input.fix_attempt_id,
       input.reviewer_agent ?? "codex",
       input.verdict,
       input.findings,
     ],
-  ))!;
+  );
 }
 
 export async function latestReview(

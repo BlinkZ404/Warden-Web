@@ -164,6 +164,30 @@ function makeLiveReviewer(provider: CompatProvider, name: string): Reviewer {
  */
 export function getReviewers(): Reviewer[] {
   if (config.isLive) {
+    // Warn (don't silently drop) a slot that's set but incomplete — otherwise a
+    // typo'd key shrinks the panel below the operator's intent with no signal.
+    const partial = config.agents.reviewers
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => (p.baseUrl || p.apiKey || p.model) && !isConfigured(p));
+    if (partial.length > 0) {
+      console.warn(
+        `[reviewer-panel] ignoring ${partial.length} partially-configured slot(s): ` +
+          partial
+            .map(
+              ({ p, i }) =>
+                `REVIEWER_${i + 1} (missing ${[
+                  ["BASE_URL", p.baseUrl],
+                  ["API_KEY", p.apiKey],
+                  ["MODEL", p.model],
+                ]
+                  .filter(([, v]) => !v)
+                  .map(([k]) => k)
+                  .join(", ")})`,
+            )
+            .join("; ") + " — panel will run with fewer reviewers than intended.",
+      );
+    }
+
     const explicit = config.agents.reviewers.filter(isConfigured);
     if (explicit.length > 0) {
       return explicit.map((p, i) => makeLiveReviewer(p, `${p.model} #${i + 1}`));

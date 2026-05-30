@@ -5,8 +5,13 @@ import { consensusOf } from "@/lib/policy/gate";
 import { ingestError } from "@/lib/ingest";
 import { normalizeSentryWebhook, syntheticSentryEvent } from "@/lib/adapters/sentry";
 import { drainJobs } from "@/lib/orchestrator/runner";
-import { getIncident } from "@/lib/repo/incidents";
-import { latestFixAttempt, listReviews } from "@/lib/repo/artifacts";
+import { getIncident, createIncident } from "@/lib/repo/incidents";
+import {
+  latestFixAttempt,
+  listReviews,
+  createReview,
+  createFixAttempt,
+} from "@/lib/repo/artifacts";
 import { listEvents } from "@/lib/repo/events";
 import { getBugByKey } from "@/lib/sim/bugs";
 import type { ReviewVerdict } from "@/lib/db/types";
@@ -32,14 +37,49 @@ describe("panel consensus (gate)", () => {
   });
 });
 
-describe("reviewer panel — multi-reviewer run", () => {
-  const orig = config.review.panelSize;
+describe("review row idempotency (DB invariant)", () => {
   beforeEach(async () => {
     await resetDatabase();
-    config.review.panelSize = 3; // read at getReviewers() call time
+  });
+
+  it("one review per (fix_attempt, reviewer) — a replayed insert is a no-op", async () => {
+    const inc = await createIncident({ fingerprint: "fp-uniq", title: "x" });
+    const fa = await createFixAttempt({
+      incident_id: inc.id,
+      branch: "b",
+      commit_sha: "c",
+      diff_summary: "s",
+      files_changed: [],
+    });
+    const r1 = await createReview({
+      fix_attempt_id: fa.id,
+      reviewer_agent: "glm",
+      verdict: "approve",
+      findings: {},
+    });
+    const r2 = await createReview({
+      fix_attempt_id: fa.id,
+      reviewer_agent: "glm",
+      verdict: "reject",
+      findings: {},
+    });
+    expect(r1).not.toBeNull(); // first insert won
+    expect(r2).toBeNull(); // conflict → no second row, no overwrite, scorecard skipped
+    const rows = await listReviews(fa.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].verdict).toBe("approve");
+  });
+});
+
+describe("reviewer panel — multi-reviewer run", () => {
+  const review = config.review as { panelSize: number }; // config is `as const`
+  const orig = review.panelSize;
+  beforeEach(async () => {
+    await resetDatabase();
+    review.panelSize = 3; // read at getReviewers() call time
   });
   afterEach(() => {
-    config.review.panelSize = orig;
+    review.panelSize = orig;
   });
 
   async function fire(key: string) {

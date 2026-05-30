@@ -259,12 +259,15 @@ async function stepUnderReview(incident: Incident) {
       ),
     );
     for (const { reviewer, result } of reviewed) {
-      await createReview({
+      const row = await createReview({
         fix_attempt_id: fa.id,
         reviewer_agent: reviewer.name,
         verdict: result.verdict,
         findings: result.findings,
       });
+      // Null = a concurrent/replayed run already recorded this reviewer — skip
+      // so the scorecard isn't double-counted (the DB unique index is the guard).
+      if (!row) continue;
       await bumpScorecard(reviewer.name, "reviewer", { attempts: 1 });
       await logAgentAction(incident.id, reviewer.name, "reviewed", {
         verdict: result.verdict,

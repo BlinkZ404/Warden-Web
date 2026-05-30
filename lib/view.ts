@@ -76,11 +76,15 @@ export async function listIncidentRows(limit = 100): Promise<IncidentRow[]> {
   const ids = incidents.map((i) => i.id);
 
   const panel = await query<{ incident_id: string; total: number; approved: number }>(
-    `SELECT fa.incident_id,
+    `WITH latest_fa AS (
+       SELECT DISTINCT ON (incident_id) id, incident_id
+       FROM fix_attempts WHERE incident_id = ANY($1)
+       ORDER BY incident_id, created_at DESC
+     )
+     SELECT fa.incident_id,
             count(r.*)::int AS total,
             count(*) FILTER (WHERE r.verdict = 'approve')::int AS approved
-     FROM fix_attempts fa JOIN reviews r ON r.fix_attempt_id = fa.id
-     WHERE fa.incident_id = ANY($1)
+     FROM latest_fa fa JOIN reviews r ON r.fix_attempt_id = fa.id
      GROUP BY fa.incident_id`,
     [ids],
   );
