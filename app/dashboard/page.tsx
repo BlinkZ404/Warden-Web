@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { IncidentRow } from "@/lib/view";
-import type { AgentScorecard } from "@/lib/db/types";
+import type { Metrics, FleetMetrics, AgentAccuracy } from "@/lib/repo/metrics";
 import { StatusBadge } from "@/app/_components/ui";
 import { relativeTime } from "@/lib/ui";
 
@@ -14,15 +14,17 @@ interface Bug {
 
 export default function Dashboard() {
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
-  const [scorecards, setScorecards] = useState<AgentScorecard[]>([]);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [bugs, setBugs] = useState<Bug[]>([]);
   const [firing, setFiring] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/incidents", { cache: "no-store" });
-    const data = await res.json();
-    setIncidents(data.incidents ?? []);
-    setScorecards(data.scorecards ?? []);
+    const [incRes, metRes] = await Promise.all([
+      fetch("/api/incidents", { cache: "no-store" }),
+      fetch("/api/metrics", { cache: "no-store" }),
+    ]);
+    setIncidents((await incRes.json()).incidents ?? []);
+    setMetrics((await metRes.json()).metrics ?? null);
   }, []);
 
   useEffect(() => {
@@ -78,7 +80,8 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <ScorecardStrip scorecards={scorecards} />
+      {metrics && <FleetPanel fleet={metrics.fleet} />}
+      {metrics && <ScorecardStrip agents={metrics.agents} />}
 
       <div className="mt-8 overflow-hidden rounded-xl border border-[var(--color-line)]">
         <table className="w-full text-sm">
@@ -159,21 +162,82 @@ export default function Dashboard() {
   );
 }
 
-function ScorecardStrip({ scorecards }: { scorecards: AgentScorecard[] }) {
-  if (scorecards.length === 0) return null;
+const pct = (r: number | null) => (r == null ? "—" : `${Math.round(r * 100)}%`);
+const dur = (s: number | null) =>
+  s == null ? "—" : s < 90 ? `${Math.round(s)}s` : `${Math.round(s / 60)}m`;
+
+/**
+ * Fleet / PMF rates (BUSINESS-PLAN §10). Accuracy is the deterministic gate +
+ * production health, never an agent rating itself — the revert rate is the
+ * kill-switch.
+ */
+function FleetPanel({ fleet }: { fleet: FleetMetrics }) {
+  const tiles: { label: string; value: string; hint: string; tone?: string }[] = [
+    {
+      label: "Autonomy",
+      value: pct(fleet.autonomyRate),
+      hint: `${fleet.reachedApproval} auto-handled · ${fleet.escalated} escalated`,
+      tone: "var(--color-accent)",
+    },
+    {
+      label: "Approval rate",
+      value: pct(fleet.approvalRate),
+      hint: `${fleet.approved} of ${fleet.reachedApproval} verified fixes shipped`,
+      tone: "var(--color-ok)",
+    },
+    {
+      label: "Revert rate",
+      value: pct(fleet.revertRate),
+      hint: `${fleet.reverted} of ${fleet.shipped} shipped reverted`,
+      tone: fleet.revertRate && fleet.revertRate > 0.05 ? "var(--color-bad)" : "var(--color-ok)",
+    },
+    {
+      label: "Time to verified",
+      value: dur(fleet.timeToVerifiedSec),
+      hint: `${fleet.resolved} resolved of ${fleet.totalIncidents} incidents`,
+    },
+  ];
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {scorecards.map((c) => (
-        <div key={c.id} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
+      {tiles.map((t) => (
+        <div key={t.label} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
+          <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">{t.label}</div>
+          <div className="mt-1 text-2xl font-semibold" style={t.tone ? { color: t.tone } : undefined}>
+            {t.value}
+          </div>
+          <div className="mt-1 text-xs text-[var(--color-muted)]">{t.hint}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Per-agent accuracy. Fixers show derived rates (verified/attempts → the gate
+ * pass rate, etc.); reviewers show raw counts, since the gate-pass/approval/
+ * regression credits structurally land on the fixer, not the reviewer.
+ */
+function ScorecardStrip({ agents }: { agents: AgentAccuracy[] }) {
+  if (agents.length === 0) return null;
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {agents.map((a) => (
+        <div key={`${a.agent}-${a.role}`} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
           <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">
-            {c.agent} · {c.role}
+            {a.agent} · {a.role}
           </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            <span>attempts <b>{c.attempts}</b></span>
-            <span className="text-[var(--color-ok)]">verified <b>{c.verified_passed}</b></span>
-            <span className="text-[var(--color-accent)]">approved <b>{c.human_approved}</b></span>
-            <span className="text-[var(--color-bad)]">regressions <b>{c.regressions}</b></span>
-          </div>
+          {a.role === "fixer" ? (
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              <span className="text-[var(--color-ok)]">verified <b>{pct(a.verifyRate)}</b></span>
+              <span className="text-[var(--color-accent)]">approved <b>{pct(a.approvalRate)}</b></span>
+              <span className="text-[var(--color-bad)]">regressions <b>{pct(a.regressionRate)}</b></span>
+              <span className="text-[var(--color-muted)]">{a.attempts} attempts</span>
+            </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              <span>reviews <b>{a.attempts}</b></span>
+            </div>
+          )}
         </div>
       ))}
     </div>
