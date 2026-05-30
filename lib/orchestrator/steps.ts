@@ -81,10 +81,24 @@ async function sentryContextFor(incident: Incident): Promise<SentryContext> {
  * Ensure the per-incident workspace exists with "production main" (the buggy
  * state). Rebuilds it if a reclaimed job landed on a fresh instance (empty disk).
  */
-async function ensureMainWorkspace(incident: Incident): Promise<void> {
+async function ensureMainWorkspace(
+  incident: Incident,
+  note = "workspace rebuilt (main)",
+): Promise<void> {
   if (await workspaceExists(incident.id)) return;
   await prepareWorkspace(incident.id, getBugByFingerprint(incident.fingerprint));
-  await logEvent(incident.id, "workspace", "system", { note: "workspace rebuilt (main)" });
+  await logEvent(incident.id, "workspace", "system", { note });
+}
+
+/** Log a failed gate and route the incident to a human (§5.3, §5.8). */
+async function escalateGate(
+  incidentId: string,
+  gate: string,
+  reasons: unknown[],
+  reason: string,
+): Promise<void> {
+  await logEvent(incidentId, "gate", "system", { gate, pass: false, reasons });
+  await transition(incidentId, "escalated", "system", { reason });
 }
 
 /**
@@ -171,13 +185,10 @@ async function stepInvestigating(incident: Incident) {
   }
 
   // Materialize the isolated workspace (sim injects the bug; live clones the repo).
-  if (!(await workspaceExists(incident.id))) {
-    const bug = getBugByFingerprint(incident.fingerprint);
-    await prepareWorkspace(incident.id, bug);
-    await logEvent(incident.id, "workspace", "system", {
-      note: "Isolated git workspace prepared (production state reproduced).",
-    });
-  }
+  await ensureMainWorkspace(
+    incident,
+    "Isolated git workspace prepared (production state reproduced).",
+  );
 
   await transition(incident.id, "fix_proposed", "claude", {
     confidence: inv.confidence,
@@ -306,14 +317,12 @@ async function stepVerifying(incident: Incident) {
     // recording a vacuous pass. Reaches here for a real live incident whose
     // target has no tests and no reproduction harness yet (see GO-LIVE.md).
     if (!reproChecked && testsCollected === 0) {
-      await logEvent(incident.id, "gate", "system", {
-        gate: "verification",
-        pass: false,
-        reasons: ["could not verify: no tests collected and no reproduction available"],
-      });
-      await transition(incident.id, "escalated", "system", {
-        reason: "verification not possible — no tests and no reproduction harness",
-      });
+      await escalateGate(
+        incident.id,
+        "verification",
+        ["could not verify: no tests collected and no reproduction available"],
+        "verification not possible — no tests and no reproduction harness",
+      );
       return;
     }
 
@@ -345,14 +354,12 @@ async function stepVerifying(incident: Incident) {
   });
 
   if (!gate.pass) {
-    await logEvent(incident.id, "gate", "system", {
-      gate: "verification",
-      pass: false,
-      reasons: gate.reasons,
-    });
-    await transition(incident.id, "escalated", "system", {
-      reason: `verification failed: ${gate.reasons.join("; ")}`,
-    });
+    await escalateGate(
+      incident.id,
+      "verification",
+      gate.reasons,
+      `verification failed: ${gate.reasons.join("; ")}`,
+    );
     return;
   }
 
@@ -416,14 +423,12 @@ async function stepVerifyingProd(incident: Incident) {
   // Health couldn't be determined (live, no real signal yet) → escalate for
   // human confirmation rather than auto-resolving an unverified prod state.
   if (health.unverifiable) {
-    await logEvent(incident.id, "gate", "system", {
-      gate: "prod-health",
-      pass: false,
-      reasons: health.newErrors,
-    });
-    await transition(incident.id, "escalated", "system", {
-      reason: "production health could not be verified — needs human confirmation",
-    });
+    await escalateGate(
+      incident.id,
+      "prod-health",
+      health.newErrors,
+      "production health could not be verified — needs human confirmation",
+    );
     return;
   }
 

@@ -9,6 +9,7 @@
  * workspace, not the simulated URL. Live mode calls the Vercel API.
  */
 import { config, live } from "@/lib/config";
+import { httpError } from "@/lib/http";
 
 export interface PreviewDeployment {
   provider: "vercel";
@@ -58,9 +59,7 @@ export async function deployPreview(
         }),
       },
     );
-    if (!res.ok) {
-      throw new Error(`vercel deploy ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    }
+    if (!res.ok) await httpError("vercel deploy", res);
     const json = (await res.json()) as { id: string; url: string };
     return { provider: "vercel", deploymentId: json.id, previewUrl: `https://${json.url}` };
   }
@@ -90,9 +89,7 @@ export async function promoteToProd(deploymentId: string): Promise<Promotion> {
       `https://api.vercel.com/v10/projects/${config.vercel.projectId}/promote/${deploymentId}${config.vercel.teamId ? `?teamId=${config.vercel.teamId}` : ""}`,
       { method: "POST", headers: { authorization: `Bearer ${config.vercel.token}` } },
     );
-    if (!res.ok) {
-      throw new Error(`vercel promote ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    }
+    if (!res.ok) await httpError("vercel promote", res);
   }
   return { prodUrl: "https://checkout-service.vercel.app", promotedAt: new Date() };
 }
@@ -110,9 +107,7 @@ export async function rollback(restoreToId: string): Promise<void> {
       `https://api.vercel.com/v9/projects/${config.vercel.projectId}/rollback/${restoreToId}${config.vercel.teamId ? `?teamId=${config.vercel.teamId}` : ""}`,
       { method: "POST", headers: { authorization: `Bearer ${config.vercel.token}` } },
     );
-    if (!res.ok) {
-      throw new Error(`vercel rollback ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    }
+    if (!res.ok) await httpError("vercel rollback", res);
   }
   // sim: no-op (no real production alias to move)
 }

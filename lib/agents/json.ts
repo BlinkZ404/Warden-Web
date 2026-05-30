@@ -41,3 +41,19 @@ export function anthropicText(json: AnthropicResponse): string {
   if (!block?.text) throw new Error("anthropic returned no text block — escalating");
   return block.text;
 }
+
+interface OpenAIResponse {
+  choices?: { message?: { content?: string }; finish_reason?: string }[];
+}
+
+/** Pull the message content out of an OpenAI chat response, refusing truncated output. */
+export function openaiText(json: OpenAIResponse): string {
+  const choice = json.choices?.[0];
+  if (!choice) throw new Error("openai returned no choices — escalating");
+  if (choice.finish_reason === "length") {
+    throw new Error("openai response truncated (length) — escalating");
+  }
+  const content = choice.message?.content;
+  if (!content) throw new Error("openai returned no message content — escalating");
+  return content;
+}

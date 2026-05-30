@@ -11,6 +11,29 @@ import { config, live } from "@/lib/config";
 import { listSubscriptions, deleteSubscription } from "@/lib/repo/push";
 import { logEvent } from "@/lib/events";
 
+/**
+ * Reject endpoints that aren't public HTTPS push services. Enforced at EGRESS
+ * (right before the outbound request), so a stored row that reached the table by
+ * ANY path — not just the validated subscribe route — can't drive a (blind)
+ * SSRF. The subscribe route reuses this as a fast-fail.
+ */
+export function isAllowedPushEndpoint(endpoint: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost")) return false;
+  if (host === "::1" || host === "169.254.169.254") return false;
+  if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return false;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
+  if (host.startsWith("fc") || host.startsWith("fd")) return false; // unique-local IPv6
+  return true;
+}
+
 let vapidReady = false;
 function ensureVapid(): boolean {
   if (vapidReady) return true;
@@ -42,7 +65,9 @@ export async function notifyApprovalNeeded(p: ApprovalPush): Promise<void> {
 
   if (!live.push() || !ensureVapid()) return; // simulation: recorded only
 
-  const subs = await listSubscriptions();
+  // Validate at the sink: only send to allow-listed public push endpoints,
+  // regardless of how the subscription row got there.
+  const subs = (await listSubscriptions()).filter((s) => isAllowedPushEndpoint(s.endpoint));
   const payload = JSON.stringify({ title: p.title, body: p.body, url });
   await Promise.all(
     subs.map(async (s) => {

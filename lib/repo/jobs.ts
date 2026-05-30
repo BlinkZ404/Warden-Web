@@ -15,11 +15,14 @@ export async function enqueue(
   // At most ONE active (queued|running) job per incident — also enforced by a
   // partial unique index (migration 0003), which closes the concurrent-enqueue
   // race. If one already exists, reuse it.
-  const active = await queryOne<Job>(
-    `SELECT * FROM jobs WHERE incident_id = $1 AND status IN ('queued','running')
-     ORDER BY id LIMIT 1`,
-    [incidentId],
-  );
+  const findActive = () =>
+    queryOne<Job>(
+      `SELECT * FROM jobs WHERE incident_id = $1 AND status IN ('queued','running')
+       ORDER BY id LIMIT 1`,
+      [incidentId],
+    );
+
+  const active = await findActive();
   if (active) return active;
   try {
     return (await queryOne<Job>(
@@ -29,13 +32,7 @@ export async function enqueue(
       [incidentId, opts.kind ?? "advance", String(delayMs)],
     ))!;
   } catch (e) {
-    if ((e as { code?: string }).code === "23505") {
-      return (await queryOne<Job>(
-        `SELECT * FROM jobs WHERE incident_id = $1 AND status IN ('queued','running')
-         ORDER BY id LIMIT 1`,
-        [incidentId],
-      ))!;
-    }
+    if ((e as { code?: string }).code === "23505") return (await findActive())!;
     throw e;
   }
 }

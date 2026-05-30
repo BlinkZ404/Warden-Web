@@ -1,5 +1,6 @@
 import { config, live } from "@/lib/config";
-import { extractJson } from "@/lib/agents/json";
+import { extractJson, openaiText } from "@/lib/agents/json";
+import { httpError } from "@/lib/http";
 import {
   diffStat,
   diffText,
@@ -132,15 +133,12 @@ const liveReviewer: Reviewer = {
         ],
       }),
     });
-    if (!res.ok) throw new Error(`openai ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    const json = (await res.json()) as {
-      choices: { message: { content: string } }[];
-    };
+    if (!res.ok) await httpError("openai", res);
     const parsed = extractJson<{
       verdict: ReviewVerdict;
       summary: string;
       notes: string[];
-    }>(json.choices[0].message.content);
+    }>(openaiText(await res.json()));
     const stat = await diffStat(ctx.workspaceRoot, ctx.baseRef, ctx.headRef);
     return {
       verdict: parsed.verdict,
