@@ -93,11 +93,18 @@ export async function workspaceExists(incidentId: string): Promise<boolean> {
   return exists(join(workspacePath(incidentId), ".git"));
 }
 
-/** Apply a find/replace edit to a file. Throws loudly if the anchor is absent. */
+/**
+ * Apply a find/replace edit to a file. Idempotent: if the anchor is gone but the
+ * replacement is already present (e.g. a retry after a crash that already applied
+ * this edit), it's a no-op rather than a hard failure — otherwise a re-run of the
+ * fix step would wedge the incident. Throws only when neither anchor nor result
+ * is present (genuine drift).
+ */
 export async function applyEdit(root: string, edit: CodeEdit): Promise<void> {
   const file = join(root, edit.file);
   const before = await readFile(file, "utf8");
   if (!before.includes(edit.find)) {
+    if (before.includes(edit.replace)) return; // already applied — idempotent no-op
     throw new Error(
       `applyEdit: anchor not found in ${edit.file}. The code may have drifted from the expected shape.`,
     );
@@ -112,7 +119,13 @@ export async function createBranch(root: string, branch: string): Promise<void> 
 
 export async function commitAll(root: string, message: string): Promise<string> {
   await git(root, ["add", "-A"]);
-  await git(root, ["commit", "-m", message]);
+  // Tolerate a clean tree on idempotent re-runs (the edit was already applied +
+  // committed before a crash): return the current HEAD rather than failing with
+  // "nothing to commit".
+  const status = await git(root, ["status", "--porcelain"]);
+  if (status.trim() !== "") {
+    await git(root, ["commit", "-m", message]);
+  }
   return git(root, ["rev-parse", "HEAD"]);
 }
 
@@ -203,6 +216,8 @@ export interface RunResult {
   code: number;
   stdout: string;
   stderr: string;
+  /** For runTests: how many tests node:test actually collected (0 = none). */
+  testsRun?: number;
 }
 
 async function run(root: string, cmd: string, args: string[]): Promise<RunResult> {
@@ -222,10 +237,19 @@ async function run(root: string, cmd: string, args: string[]): Promise<RunResult
   }
 }
 
-/** Run the target app's test suite (PLAN M7: generate a smoke test if none). */
+/**
+ * Run the target app's test suite. Also reports how many tests were actually
+ * collected — `node --test` exits 0 even when it finds ZERO test files, so the
+ * gate must not treat an empty run as a pass (a test-less repo would otherwise
+ * sail through verification). The caller fails closed on testsRun === 0.
+ */
 export async function runTests(root: string): Promise<RunResult> {
-  // The sample app is zero-dependency and uses node:test, so this is hermetic.
-  return run(root, "node", ["--test"]);
+  const result = await run(root, "node", ["--test"]);
+  // node:test prints a summary line like "ℹ tests 5" / "# tests 5".
+  const m = `${result.stdout}\n${result.stderr}`.match(
+    /(?:^|\n)\s*(?:#|ℹ)\s*tests\s+(\d+)/,
+  );
+  return { ...result, testsRun: m ? Number(m[1]) : 0 };
 }
 
 /** Replay the exact production-failing request. code 0 = error stopped. */

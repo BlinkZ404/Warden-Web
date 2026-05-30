@@ -4,7 +4,12 @@ import { ingestError } from "@/lib/ingest";
 import { normalizeSentryWebhook, syntheticSentryEvent } from "@/lib/adapters/sentry";
 import { advanceIncident, runIncidentToBoundary } from "@/lib/orchestrator/steps";
 import { getIncident } from "@/lib/repo/incidents";
-import { latestFixAttempt, createReview } from "@/lib/repo/artifacts";
+import {
+  latestFixAttempt,
+  createReview,
+  createVerification,
+  latestApproval,
+} from "@/lib/repo/artifacts";
 import { query } from "@/lib/db/client";
 import { getBugByKey } from "@/lib/sim/bugs";
 import { destroyWorkspace } from "@/lib/adapters/workspace";
@@ -77,6 +82,38 @@ describe("orchestrator resumability + idempotency (M3)", () => {
     await advanceIncident(incidentId);
     expect((await getIncident(incidentId))!.status).toBe("verifying");
     expect(await countBy("reviews", "fix_attempt_id", fa!.id)).toBe(1);
+
+    await destroyWorkspace(incidentId);
+  });
+
+  it("verification failure → escalated (the deterministic gate is the real gate)", async () => {
+    const { incidentId } = await fire("checkout-missing-price");
+
+    // Drive to `verifying` but stop before stepVerifying runs.
+    for (let i = 0; i < 20; i++) {
+      const s = (await getIncident(incidentId))!.status;
+      if (s === "verifying") break;
+      await advanceIncident(incidentId);
+    }
+    expect((await getIncident(incidentId))!.status).toBe("verifying");
+
+    // Seed a FAILING verification so the step's idempotency guard reuses it
+    // (simulates the real gate finding failing tests / a recurring error).
+    const fa = await latestFixAttempt(incidentId);
+    await createVerification({
+      fix_attempt_id: fa!.id,
+      preview_url: "https://preview.example",
+      test_passed: false,
+      error_recurred: true,
+      new_errors: [],
+    });
+
+    await advanceIncident(incidentId);
+
+    // It escalates and never reaches approval — no human tap can override a
+    // failed deterministic gate.
+    expect((await getIncident(incidentId))!.status).toBe("escalated");
+    expect(await latestApproval(incidentId)).toBeNull();
 
     await destroyWorkspace(incidentId);
   });

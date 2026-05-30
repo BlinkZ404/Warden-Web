@@ -90,7 +90,7 @@ export default function Approve() {
           </p>
           <Row ok={!!verification.test_passed} label="All tests pass" />
           <Row ok={!verification.error_recurred} label="The error is gone" />
-          <Row ok={!((verification.new_errors as unknown[] | null)?.length)} label="No new errors" />
+          <Row ok={!((verification.new_errors as unknown[] | null)?.length)} label="No new errors detected" />
         </div>
       )}
 

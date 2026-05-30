@@ -155,7 +155,7 @@ export default function IncidentDetail() {
             <Check ok={!verification.error_recurred} label="original error stopped" />
             <Check
               ok={!((verification.new_errors as unknown[] | null)?.length)}
-              label="no new errors"
+              label="no new errors detected"
             />
             {verification.preview_url && (
               <Meta label="preview" value={verification.preview_url} />

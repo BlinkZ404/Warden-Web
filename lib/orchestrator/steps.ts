@@ -246,24 +246,51 @@ async function stepVerifying(incident: Incident) {
 
     // Deterministic gate (§5.3): tests + does the original error still reproduce?
     const tests = await runTests(root);
+    const testsCollected = tests.testsRun ?? 0;
+    // `node --test` exits 0 even with ZERO test files — never treat that as a pass.
+    const testPassed = tests.code === 0 && testsCollected > 0;
+
     let errorRecurred = false;
+    let reproChecked = false;
     if (bug) {
       const repro = await reproduce(root, bug.reproScenario, bug.triggeringInput);
       errorRecurred = repro.code !== 0;
+      reproChecked = true;
     }
-    const newErrors: string[] = []; // no new signatures detected in sim
+
+    // Fail closed (§5.8): if we could neither run any tests nor reproduce the
+    // original error, the fix is NOT honestly verified — escalate instead of
+    // recording a vacuous pass. Reaches here for a real live incident whose
+    // target has no tests and no reproduction harness yet (see GO-LIVE.md).
+    if (!reproChecked && testsCollected === 0) {
+      await logEvent(incident.id, "gate", "system", {
+        gate: "verification",
+        pass: false,
+        reasons: ["could not verify: no tests collected and no reproduction available"],
+      });
+      await transition(incident.id, "escalated", "system", {
+        reason: "verification not possible — no tests and no reproduction harness",
+      });
+      return;
+    }
+
+    // new_errors stays empty until a live error-signal source is wired (GO-LIVE);
+    // the UI surfaces this as "no new errors detected", not an affirmative check.
+    const newErrors: string[] = [];
 
     v = await createVerification({
       fix_attempt_id: fa.id,
       preview_url: preview.previewUrl,
-      test_passed: tests.code === 0,
+      test_passed: testPassed,
       error_recurred: errorRecurred,
       new_errors: newErrors,
     });
     await logEvent(incident.id, "verification", "system", {
       preview_url: preview.previewUrl,
-      test_passed: tests.code === 0,
+      test_passed: testPassed,
+      tests_collected: testsCollected,
       error_recurred: errorRecurred,
+      repro_checked: reproChecked,
       new_errors: newErrors.length,
     });
   }
