@@ -55,6 +55,7 @@ import {
   promoteToProd,
   rollback,
   verifyProdHealth,
+  currentProdDeployment,
 } from "@/lib/adapters/deploy";
 import { consensusDecision, verificationGate } from "@/lib/policy/gate";
 import { notifyApprovalNeeded } from "@/lib/notify";
@@ -275,8 +276,9 @@ async function stepVerifying(incident: Incident) {
     const root = workspacePath(incident.id);
     const bug = getBugByFingerprint(incident.fingerprint);
 
-    // Deploy a preview (PLAN §7). The REAL gate (below) runs against the tree.
-    const preview = await deployPreview(incident.id, root);
+    // Deploy a preview of the EXACT verified commit (PLAN §7). The REAL gate
+    // (below) runs against the tree.
+    const preview = await deployPreview(incident.id, { ref: fa.commit_sha ?? undefined });
     await createDeployment({
       fix_attempt_id: fa.id,
       provider: preview.provider,
@@ -391,8 +393,11 @@ async function stepDeploying(incident: Incident) {
     return;
   }
 
+  // Capture the current-good production deployment BEFORE promoting, so a later
+  // rollback restores to it (not to the deployment we're about to ship).
+  const prevProd = await currentProdDeployment();
   const promo = await promoteToProd(dep?.deployment_id ?? `dpl_sim_${incident.id.slice(0, 8)}`);
-  if (dep) await markDeploymentPromoted(dep.id, promo.prodUrl);
+  if (dep) await markDeploymentPromoted(dep.id, promo.prodUrl, prevProd);
   await logEvent(incident.id, "deploy", "system", {
     promoted: true,
     prodUrl: promo.prodUrl,
@@ -407,8 +412,25 @@ async function stepVerifyingProd(incident: Incident) {
   const bug = getBugByFingerprint(incident.fingerprint);
 
   const health = await verifyProdHealth({ simulateRegression: bug?.simProdRegresses });
+
+  // Health couldn't be determined (live, no real signal yet) → escalate for
+  // human confirmation rather than auto-resolving an unverified prod state.
+  if (health.unverifiable) {
+    await logEvent(incident.id, "gate", "system", {
+      gate: "prod-health",
+      pass: false,
+      reasons: health.newErrors,
+    });
+    await transition(incident.id, "escalated", "system", {
+      reason: "production health could not be verified — needs human confirmation",
+    });
+    return;
+  }
+
   if (!health.healthy) {
-    await rollback(dep?.deployment_id ?? "");
+    // Roll back TO the previous-good production deployment (NOT the bad one we
+    // just shipped). In sim there is no prior prod, so this is a no-op.
+    await rollback(dep?.prev_prod_deployment_id ?? "");
     if (dep) await markDeploymentRolledBack(dep.id);
     await bumpScorecard(fa.agent, "fixer", { regressions: 1 });
     await logEvent(incident.id, "rollback", "system", {

@@ -60,8 +60,9 @@ console page showing the Aurora **Serverless v2** cluster.
 | Env | Used by | Notes |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Fixer + Investigator (Claude) | `ANTHROPIC_MODEL` defaults to `claude-opus-4-8` |
-| `OPENAI_API_KEY` | Reviewer (Codex) | `OPENAI_MODEL` defaults to `gpt-5-codex` |
+| `OPENAI_API_KEY` | Reviewer (Codex) | `OPENAI_MODEL` defaults to `gpt-4.1` — must be a **chat-completions** model; Codex models (`gpt-5-codex`) only work on `/v1/responses` |
 | `EMBEDDING_API_KEY` | incident memory | optional — falls back to the deterministic local embedder |
+| `VERCEL_REPO_ID` | deploy parity | git-linked project repo id, so the preview builds the exact verified commit |
 
 The live agent adapters are written but **untested without keys**; budget a pass
 to validate Claude's patch application and Codex's review JSON against your real
@@ -85,6 +86,40 @@ gracefully back to simulation** for that capability only — so a partially
 configured environment still runs end to end.
 
 ---
+
+## Known live-mode gaps (finish before relying on `live`)
+
+A hardening audit (see [AUDIT.md](AUDIT.md)) confirmed the **simulation path is
+sound**; these are live-only items that are made **fail-closed** (they escalate
+to a human rather than do the wrong thing) but need *your* accounts to fully
+wire and test. Until then, live incidents that hit them will safely escalate.
+
+1. **Deploy parity (the verified tree must be the shipped tree).** `deployPreview`
+   now deploys via `gitSource` at the fix commit, but that requires the fix
+   branch to be **pushed to your repo** and `VERCEL_REPO_ID` set. Wire the live
+   Fixer to `git push` the branch, and assert the built SHA equals
+   `fix_attempts.commit_sha` before promoting. Without `VERCEL_REPO_ID` the
+   deploy fails closed.
+2. **Live reproduction harness.** In simulation the gate reproduces the seeded
+   error; for a real Sentry incident there's no reproduction script, so the gate
+   **escalates** ("no tests and no reproduction"). To auto-handle real
+   incidents, build a reproduction from the Sentry event (replay the failing
+   request/stack) and/or generate a smoke test for test-less repos (PLAN §16).
+3. **`test_passed` for test-less repos.** `node --test` with zero tests no longer
+   counts as a pass; a test-less target escalates. Implement smoke-test
+   generation to auto-handle those.
+4. **New-error detection.** The "no new errors" gate leg has no live signal yet
+   (the UI says "no new errors **detected**"). Wire a post-preview Sentry/Vercel
+   error-rate diff to populate it.
+5. **Production health watch.** `verifyProdHealth` fails closed in live (escalates
+   for manual confirmation). Implement the real post-deploy error-rate comparison
+   to enable autonomous resolve / auto-rollback.
+6. **Auth.** approve / rollback / tick accept an optional `NIGHTSHIFT_API_SECRET`
+   (set it!). Full multi-tenant auth — deriving the approver identity from an
+   authenticated session instead of the request body — is still PLAN §11 work.
+7. **Live agent adapters are untested** (no keys here): validate Claude's patch
+   application (it now refuses truncated output and parses defensively) and the
+   Reviewer's JSON against your real target repo before relying on them.
 
 ## Hackathon submission checklist (PLAN §4)
 

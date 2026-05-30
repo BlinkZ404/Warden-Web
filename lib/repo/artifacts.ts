@@ -195,10 +195,13 @@ export async function createDeployment(input: {
 export async function markDeploymentPromoted(
   id: string,
   prodUrl: string,
+  prevProdDeploymentId: string | null = null,
 ): Promise<void> {
   await query(
-    "UPDATE deployments SET prod_url = $2, promoted_at = now() WHERE id = $1",
-    [id, prodUrl],
+    `UPDATE deployments
+     SET prod_url = $2, promoted_at = now(), prev_prod_deployment_id = $3
+     WHERE id = $1`,
+    [id, prodUrl, prevProdDeploymentId],
   );
 }
 

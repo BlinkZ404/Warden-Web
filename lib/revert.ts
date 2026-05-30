@@ -31,7 +31,8 @@ export async function recordRevert(incidentId: string, decidedBy: string) {
   const fa = await latestFixAttempt(incidentId);
   const dep = fa ? await latestDeployment(fa.id) : null;
   if (dep) {
-    await rollback(dep.deployment_id ?? ""); // Vercel instant rollback (no rebuild)
+    // Restore the previous-good production deployment (not the shipped fix).
+    await rollback(dep.prev_prod_deployment_id ?? "");
     await markDeploymentRolledBack(dep.id);
   }
 

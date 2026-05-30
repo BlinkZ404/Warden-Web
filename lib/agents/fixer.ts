@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { config, live } from "@/lib/config";
+import { extractJson, anthropicText } from "@/lib/agents/json";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 import { createBranch, applyEdit, commitAll } from "@/lib/adapters/workspace";
 import type { Fixer, FixerContext, FixProposal } from "@/lib/agents/types";
@@ -71,11 +72,9 @@ const liveFixer: Fixer = {
       }),
     });
     if (!res.ok) throw new Error(`anthropic ${res.status}`);
-    const json = (await res.json()) as { content: { text: string }[] };
-    const parsed = JSON.parse(json.content[0].text) as {
-      newContent: string;
-      summary: string;
-    };
+    const parsed = extractJson<{ newContent: string; summary: string }>(
+      anthropicText(await res.json()),
+    );
 
     const branch = branchName(ctx.incident.id);
     await createBranch(ctx.workspaceRoot, branch);

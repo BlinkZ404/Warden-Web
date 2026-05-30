@@ -1,4 +1,5 @@
 import { config, live } from "@/lib/config";
+import { extractJson } from "@/lib/agents/json";
 import {
   diffStat,
   diffText,
@@ -131,15 +132,15 @@ const liveReviewer: Reviewer = {
         ],
       }),
     });
-    if (!res.ok) throw new Error(`openai ${res.status}`);
+    if (!res.ok) throw new Error(`openai ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const json = (await res.json()) as {
       choices: { message: { content: string } }[];
     };
-    const parsed = JSON.parse(json.choices[0].message.content) as {
+    const parsed = extractJson<{
       verdict: ReviewVerdict;
       summary: string;
       notes: string[];
-    };
+    }>(json.choices[0].message.content);
     const stat = await diffStat(ctx.workspaceRoot, ctx.baseRef, ctx.headRef);
     return {
       verdict: parsed.verdict,

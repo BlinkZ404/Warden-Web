@@ -25,6 +25,8 @@ export interface ProdHealth {
   healthy: boolean;
   errorRateDelta: number; // fractional change vs baseline
   newErrors: string[];
+  /** True when health could not be determined (vs. a real regression) → escalate, don't rollback. */
+  unverifiable?: boolean;
 }
 
 function slug(incidentId: string): string {
@@ -33,10 +35,13 @@ function slug(incidentId: string): string {
 
 export async function deployPreview(
   incidentId: string,
-  _workspaceRoot: string,
+  opts: { ref?: string } = {},
 ): Promise<PreviewDeployment> {
   if (live.deploy()) {
-    // Live: `vercel deploy` (prebuilt) → returns a preview URL. Untested w/o token.
+    // Deploy the EXACT verified commit. The fix branch must be pushed to the
+    // customer remote first so Vercel can build this SHA — see GO-LIVE.md
+    // "deploy parity". Without VERCEL_REPO_ID this fails closed (rather than
+    // silently building the wrong tree). Omitting `target` yields a preview.
     const res = await fetch(
       `https://api.vercel.com/v13/deployments${config.vercel.teamId ? `?teamId=${config.vercel.teamId}` : ""}`,
       {
@@ -45,10 +50,17 @@ export async function deployPreview(
           authorization: `Bearer ${config.vercel.token}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ name: config.vercel.projectId, target: "preview" }),
+        body: JSON.stringify({
+          name: config.vercel.projectId,
+          gitSource: config.vercel.repoId
+            ? { type: "github", repoId: config.vercel.repoId, ref: opts.ref }
+            : undefined,
+        }),
       },
     );
-    if (!res.ok) throw new Error(`vercel deploy ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`vercel deploy ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    }
     const json = (await res.json()) as { id: string; url: string };
     return { provider: "vercel", deploymentId: json.id, previewUrl: `https://${json.url}` };
   }
@@ -59,45 +71,70 @@ export async function deployPreview(
   };
 }
 
+/** The current READY production deployment id — captured before promote so we can roll back TO it. */
+export async function currentProdDeployment(): Promise<string | null> {
+  if (!live.deploy()) return null;
+  const res = await fetch(
+    `https://api.vercel.com/v6/deployments?projectId=${config.vercel.projectId}&target=production&state=READY&limit=1${config.vercel.teamId ? `&teamId=${config.vercel.teamId}` : ""}`,
+    { headers: { authorization: `Bearer ${config.vercel.token}` } },
+  );
+  if (!res.ok) return null;
+  const json = (await res.json()) as { deployments?: { uid?: string; id?: string }[] };
+  const d = json.deployments?.[0];
+  return d?.uid ?? d?.id ?? null;
+}
+
 export async function promoteToProd(deploymentId: string): Promise<Promotion> {
   if (live.deploy()) {
     const res = await fetch(
       `https://api.vercel.com/v10/projects/${config.vercel.projectId}/promote/${deploymentId}${config.vercel.teamId ? `?teamId=${config.vercel.teamId}` : ""}`,
       { method: "POST", headers: { authorization: `Bearer ${config.vercel.token}` } },
     );
-    if (!res.ok) throw new Error(`vercel promote ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`vercel promote ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    }
   }
   return { prodUrl: "https://checkout-service.vercel.app", promotedAt: new Date() };
 }
 
 /**
- * Vercel instant rollback: re-points the production alias to the previous
- * deployment with no rebuild (§7). After a rollback, Vercel disables
- * auto-promotion until undone — the state machine tracks `rolled_back`.
+ * Vercel instant rollback: re-points the production alias to `restoreToId` — the
+ * PREVIOUS-good production deployment — with no rebuild (§7). It must NOT be the
+ * just-shipped bad deployment. After a rollback, Vercel disables auto-promotion
+ * until undone — the state machine tracks `rolled_back`.
  */
-export async function rollback(deploymentId: string): Promise<void> {
+export async function rollback(restoreToId: string): Promise<void> {
   if (live.deploy()) {
+    if (!restoreToId) throw new Error("rollback: no previous-good deployment to restore to");
     const res = await fetch(
-      `https://api.vercel.com/v9/projects/${config.vercel.projectId}/rollback/${deploymentId}${config.vercel.teamId ? `?teamId=${config.vercel.teamId}` : ""}`,
+      `https://api.vercel.com/v9/projects/${config.vercel.projectId}/rollback/${restoreToId}${config.vercel.teamId ? `?teamId=${config.vercel.teamId}` : ""}`,
       { method: "POST", headers: { authorization: `Bearer ${config.vercel.token}` } },
     );
-    if (!res.ok) throw new Error(`vercel rollback ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`vercel rollback ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    }
   }
-  // sim: no-op
+  // sim: no-op (no real production alias to move)
 }
 
 /**
  * Watch production health after promotion (PLAN §9 verifying_prod, M9). Error
- * rate is a live signal (Sentry/Vercel analytics), so in simulation we honor an
- * explicit "this scenario regresses in prod" directive from the orchestrator.
+ * rate is a live signal (Sentry/Vercel analytics). In simulation we honor an
+ * explicit "this scenario regresses in prod" directive. In live mode the real
+ * comparison isn't implemented yet, so we fail CLOSED: report `unverifiable` so
+ * the orchestrator escalates for human confirmation instead of auto-resolving
+ * an unverified production state (see GO-LIVE.md).
  */
 export async function verifyProdHealth(
   opts: { simulateRegression?: boolean } = {},
 ): Promise<ProdHealth> {
   if (live.deploy()) {
-    // Live: compare post-deploy error rate to baseline via Sentry/Vercel.
-    // (Untested without keys.) Default healthy if unavailable.
-    return { healthy: true, errorRateDelta: 0, newErrors: [] };
+    return {
+      healthy: false,
+      unverifiable: true,
+      errorRateDelta: 0,
+      newErrors: ["prod health check not implemented — escalate for manual confirmation"],
+    };
   }
   if (opts.simulateRegression) {
     return {

@@ -1,5 +1,6 @@
 import { readOnlyQuery } from "@/lib/db/client";
 import { config, live } from "@/lib/config";
+import { extractJson, anthropicText } from "@/lib/agents/json";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 import type { Incident } from "@/lib/db/types";
 import type { Investigator, InvestigationResult, SentryContext } from "@/lib/agents/types";
@@ -69,12 +70,11 @@ const liveInvestigator: Investigator = {
       }),
     });
     if (!res.ok) throw new Error(`anthropic ${res.status}`);
-    const json = (await res.json()) as { content: { text: string }[] };
-    const parsed = JSON.parse(json.content[0].text) as {
+    const parsed = extractJson<{
       rootCause: string;
       confidence: number;
       culpritFile?: string;
-    };
+    }>(anthropicText(await res.json()));
     return {
       rootCause: parsed.rootCause,
       confidence: parsed.confidence,

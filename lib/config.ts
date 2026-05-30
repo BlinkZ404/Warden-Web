@@ -46,7 +46,9 @@ export const config = {
     anthropicApiKey: str("ANTHROPIC_API_KEY"),
     anthropicModel: str("ANTHROPIC_MODEL", "claude-opus-4-8"),
     openaiApiKey: str("OPENAI_API_KEY"),
-    openaiModel: str("OPENAI_MODEL", "gpt-5-codex"),
+    // A chat-completions-compatible model. Codex models (gpt-5-codex) only work
+    // on /v1/responses and 400 on /v1/chat/completions — see GO-LIVE.md.
+    openaiModel: str("OPENAI_MODEL", "gpt-4.1"),
     embeddingApiKey: str("EMBEDDING_API_KEY"),
   },
 
@@ -58,6 +60,7 @@ export const config = {
     token: str("VERCEL_TOKEN"),
     projectId: str("VERCEL_PROJECT_ID"),
     teamId: str("VERCEL_TEAM_ID"),
+    repoId: str("VERCEL_REPO_ID"), // git-linked project repo id (for deploy parity)
   },
 
   push: {

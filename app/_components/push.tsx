@@ -17,7 +17,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
  */
 export function EnableNotifications() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
-  const [state, setState] = useState<"idle" | "on" | "working">("idle");
+  const [state, setState] = useState<"idle" | "on" | "working" | "unsupported">("idle");
 
   useEffect(() => {
     fetch("/api/push/subscribe")
@@ -27,7 +27,18 @@ export function EnableNotifications() {
   }, []);
 
   async function enable() {
-    if (!publicKey || !("serviceWorker" in navigator)) return;
+    if (!publicKey) return;
+    // Push needs a secure context + the Notification/Push APIs. Distinguish
+    // "unsupported" from "denied" so the user gets an actionable hint.
+    if (
+      !("serviceWorker" in navigator) ||
+      !("Notification" in window) ||
+      !("PushManager" in window) ||
+      !window.isSecureContext
+    ) {
+      setState("unsupported");
+      return;
+    }
     setState("working");
     try {
       const reg = await navigator.serviceWorker.register("/sw.js");
@@ -52,6 +63,16 @@ export function EnableNotifications() {
     return (
       <span className="text-[10px] text-[var(--color-muted)]" title="Set VAPID keys to enable push (see GO-LIVE.md)">
         push: demo mode
+      </span>
+    );
+  }
+  if (state === "unsupported") {
+    return (
+      <span
+        className="text-[10px] text-[var(--color-muted)]"
+        title="Push needs HTTPS and a supported browser"
+      >
+        push: unsupported here
       </span>
     );
   }

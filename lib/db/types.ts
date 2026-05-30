@@ -105,6 +105,7 @@ export interface Deployment {
   promoted_at: Date | null;
   rolled_back: boolean;
   rolled_back_at: Date | null;
+  prev_prod_deployment_id: string | null;
 }
 
 export interface Outcome {
