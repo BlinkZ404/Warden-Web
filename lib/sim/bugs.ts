@@ -68,6 +68,17 @@ const CHECKOUT_GOOD =
   "    const unit = item.price?.amount ?? 0;\n    subtotal += unit * item.quantity;";
 const CHECKOUT_BAD = "    subtotal += item.price.amount * item.quantity;";
 
+// The basket that triggers the checkout TypeError (a FREE-GIFT line with no
+// `price`). Shared by the named-scenario input and the generic `repro` args so
+// the two cannot drift.
+const CHECKOUT_CRASH_CART = {
+  taxRate: 0.1,
+  items: [
+    { sku: "MUG", price: { amount: 1000 }, quantity: 1 },
+    { sku: "FREE-GIFT", quantity: 1 },
+  ],
+};
+
 const DISCOUNT_GOOD =
   "  const rule = codes[code];\n  if (!rule) return subtotal; // unknown / empty code → charge full price\n  return Math.round(subtotal * (1 - rule.percent / 100));";
 const DISCOUNT_BAD =
@@ -88,27 +99,13 @@ export const SEEDED_BUGS: SeededBug[] = [
     fixSummary:
       "Treat line items with no price (e.g. free gifts) as costing 0 instead of crashing the checkout. No price is ever charged differently — only the crash is removed.",
     reproScenario: "checkout-missing-price",
-    triggeringInput: {
-      taxRate: 0.1,
-      items: [
-        { sku: "MUG", price: { amount: 1000 }, quantity: 1 },
-        { sku: "FREE-GIFT", quantity: 1 },
-      ],
-    },
+    triggeringInput: CHECKOUT_CRASH_CART,
     // Generic-path descriptor (the live seam). `args` is always a positional
     // argument list — the cart is one object, so it's wrapped: [cart].
     repro: {
       module: "src/checkout.js",
       export: "computeCheckoutTotal",
-      args: [
-        {
-          taxRate: 0.1,
-          items: [
-            { sku: "MUG", price: { amount: 1000 }, quantity: 1 },
-            { sku: "FREE-GIFT", quantity: 1 },
-          ],
-        },
-      ],
+      args: [CHECKOUT_CRASH_CART],
     },
     inject: { file: "src/checkout.js", find: CHECKOUT_GOOD, replace: CHECKOUT_BAD },
     fix: { file: "src/checkout.js", find: CHECKOUT_BAD, replace: CHECKOUT_GOOD },
@@ -148,13 +145,7 @@ export const SEEDED_BUGS: SeededBug[] = [
     fixSummary:
       "Guard missing prices (but the patch also touches an unrelated file, which the Reviewer flags).",
     reproScenario: "checkout-missing-price",
-    triggeringInput: {
-      taxRate: 0.1,
-      items: [
-        { sku: "MUG", price: { amount: 1000 }, quantity: 1 },
-        { sku: "FREE-GIFT", quantity: 1 },
-      ],
-    },
+    triggeringInput: CHECKOUT_CRASH_CART,
     inject: { file: "src/checkout.js", find: CHECKOUT_GOOD, replace: CHECKOUT_BAD },
     fix: { file: "src/checkout.js", find: CHECKOUT_BAD, replace: CHECKOUT_GOOD },
     sloppyFix: {
@@ -180,13 +171,7 @@ export const SEEDED_BUGS: SeededBug[] = [
       "Same as the checkout TypeError, used to exercise the auto-rollback path when production health degrades after promotion.",
     fixSummary: "Guard missing prices on checkout line items.",
     reproScenario: "checkout-missing-price",
-    triggeringInput: {
-      taxRate: 0.1,
-      items: [
-        { sku: "MUG", price: { amount: 1000 }, quantity: 1 },
-        { sku: "FREE-GIFT", quantity: 1 },
-      ],
-    },
+    triggeringInput: CHECKOUT_CRASH_CART,
     inject: { file: "src/checkout.js", find: CHECKOUT_GOOD, replace: CHECKOUT_BAD },
     fix: { file: "src/checkout.js", find: CHECKOUT_BAD, replace: CHECKOUT_GOOD },
     simProdRegresses: true,

@@ -189,7 +189,7 @@ function FleetPanel({ fleet }: { fleet: FleetMetrics }) {
       label: "Revert rate",
       value: pct(fleet.revertRate),
       hint: `${fleet.reverted} of ${fleet.shipped} shipped reverted`,
-      tone: fleet.revertRate && fleet.revertRate > 0.05 ? "var(--color-bad)" : "var(--color-ok)",
+      tone: fleet.revertWithinCeiling === false ? "var(--color-bad)" : "var(--color-ok)",
     },
     {
       label: "Time to verified",

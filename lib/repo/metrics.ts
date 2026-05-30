@@ -23,6 +23,14 @@ export function safeRate(num: number, den: number): number | null {
   return den > 0 ? num / den : null;
 }
 
+/**
+ * §10 kill-switch: a post-ship revert rate at or below this is healthy; above
+ * it is the "stop expanding fix scope" signal. The threshold is a policy number,
+ * so it lives here in the data layer — the dashboard renders the derived
+ * `revertWithinCeiling` boolean, not the bare number.
+ */
+export const REVERT_RATE_CEILING = 0.05;
+
 export interface FleetMetrics {
   totalIncidents: number;
   resolved: number;
@@ -42,6 +50,8 @@ export interface FleetMetrics {
   autonomyRate: number | null;
   /** reverted / shipped — the kill-switch metric. */
   revertRate: number | null;
+  /** revertRate <= REVERT_RATE_CEILING; null when nothing has shipped yet. */
+  revertWithinCeiling: boolean | null;
   /** Mean seconds from incident detected to the first passing gate (latency). */
   timeToVerifiedSec: number | null;
 }
@@ -79,8 +89,21 @@ interface FleetRow {
 }
 
 export async function computeMetrics(): Promise<Metrics> {
-  // One consistent snapshot. Counts are ::int (node-pg → number); the latency is
-  // ::float8 so it returns a JS number (or null when nothing has verified yet).
+  // The fleet aggregation and the per-agent scorecard read hit different tables
+  // and are independent, so issue them together (the scorecard query runs while
+  // the fleet query is awaited). Counts are ::int (node-pg → number); the latency
+  // is ::float8 (a JS number, or null when nothing has verified yet).
+  const agentRows = query<{
+    agent: string;
+    role: string;
+    attempts: number;
+    verified_passed: number;
+    human_approved: number;
+    regressions: number;
+  }>(
+    `SELECT agent, role, attempts, verified_passed, human_approved, regressions
+       FROM agent_scorecard ORDER BY role, agent`,
+  );
   const f = (await queryOne<FleetRow>(`
     SELECT
       (SELECT count(*)::int FROM incidents)                                    AS total_incidents,
@@ -107,6 +130,7 @@ export async function computeMetrics(): Promise<Metrics> {
          JOIN incidents i ON i.id = fp.incident_id)                           AS time_to_verified_sec
   `))!;
 
+  const revertRate = safeRate(f.reverted, f.shipped);
   const fleet: FleetMetrics = {
     totalIncidents: f.total_incidents,
     resolved: f.resolved,
@@ -117,21 +141,12 @@ export async function computeMetrics(): Promise<Metrics> {
     approved: f.approved,
     approvalRate: safeRate(f.approved, f.reached_approval),
     autonomyRate: safeRate(f.reached_approval, f.decided),
-    revertRate: safeRate(f.reverted, f.shipped),
+    revertRate,
+    revertWithinCeiling: revertRate == null ? null : revertRate <= REVERT_RATE_CEILING,
     timeToVerifiedSec: f.time_to_verified_sec,
   };
 
-  const rows = await query<{
-    agent: string;
-    role: string;
-    attempts: number;
-    verified_passed: number;
-    human_approved: number;
-    regressions: number;
-  }>(
-    `SELECT agent, role, attempts, verified_passed, human_approved, regressions
-       FROM agent_scorecard ORDER BY role, agent`,
-  );
+  const rows = await agentRows;
 
   const agents: AgentAccuracy[] = rows.map((r) => {
     // Reviewers only accrue `attempts`; their verified/approved/regression

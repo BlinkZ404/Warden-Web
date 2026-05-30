@@ -47,6 +47,7 @@ describe("metrics — derived accuracy & fleet rates", () => {
     expect(m.fleet.approvalRate).toBe(1); // 1 approved / 1 verified-and-awaiting
     expect(m.fleet.autonomyRate).toBe(1); // 1 reached approval / 1 decided (none escalated)
     expect(m.fleet.revertRate).toBe(0); // 0 reverted / 1 shipped
+    expect(m.fleet.revertWithinCeiling).toBe(true); // 0% is under the kill-switch
     expect(m.fleet.timeToVerifiedSec).not.toBeNull();
     expect(m.fleet.timeToVerifiedSec!).toBeGreaterThanOrEqual(0);
 
