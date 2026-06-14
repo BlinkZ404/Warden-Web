@@ -1,4 +1,4 @@
--- One review row per (fix attempt, reviewer) — makes the reviewer-panel
+-- One review row per (fix attempt, reviewer); makes the reviewer-panel
 -- idempotency a DB invariant, not just an in-memory check. A stale-lease
 -- double-run (or any retry) can no longer insert duplicate review rows that
 -- would corrupt consensus counts (and, under a relaxed quorum, flip

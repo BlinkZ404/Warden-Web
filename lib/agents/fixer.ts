@@ -36,7 +36,7 @@ async function commitRewrite(
 
 /**
  * Fixer = Claude. It writes a patch on a NEW branch in the per-incident
- * workspace — no merge, no deploy (PLAN §5.1). The simulation applies the real
+ * workspace (no merge, no deploy; PLAN §5.1). The simulation applies the real
  * fix from the bug catalog so the verification gate genuinely passes only when
  * the code is actually repaired.
  */

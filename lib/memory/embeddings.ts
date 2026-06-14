@@ -3,7 +3,7 @@
  * before?").
  *
  * In simulation mode we use a deterministic local embedding (a signed hashing
- * vectorizer) — no API key, fully offline, and crucially *deterministic*, so a
+ * vectorizer): no API key, fully offline, and crucially *deterministic*, so a
  * repeat incident embeds to (nearly) the same vector and cosine similarity
  * fires reliably. In live mode this is swapped for a real embeddings API; both
  * produce 1536-dim vectors so the schema is unchanged.
@@ -45,7 +45,7 @@ export function localEmbed(text: string): number[] {
   return vec.map((v) => v / norm);
 }
 
-/** The text we embed for an incident — the stable signature of the error. */
+/** The text we embed for an incident: the stable signature of the error. */
 export function incidentEmbeddingText(input: {
   title: string;
   service?: string | null;

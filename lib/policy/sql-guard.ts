@@ -2,13 +2,13 @@
  * Data-mutation safety (PLAN §5.5, §10).
  *
  * In v1, data fixes are HUMAN-ONLY and the orchestrator never runs them
- * autonomously — read-only investigation is the only autonomous DB access. This
+ * autonomously; read-only investigation is the only autonomous DB access. This
  * module is the safety primitive that backs that policy: it statically blocks
  * the dangerous shapes and provides a dry-run (run-in-transaction-then-ROLLBACK)
  * so a proposed write can be shown to a human in plain English with an honest
  * row count before anything is committed.
  *
- * Caveat (per §10): a dry-run still fires triggers/sequences and holds locks —
+ * Caveat (per §10): a dry-run still fires triggers/sequences and holds locks;
  * it is "dry-ish", not free. We never auto-approve a write on its basis.
  */
 import { getPool } from "@/lib/db/client";
@@ -99,7 +99,7 @@ export function guardMutation(sql: string): GuardResult {
     return { allowed: true, kind };
   }
   // DDL and anything unrecognized (comment-prefixed, writable CTE, EXPLAIN/COPY,
-  // …) fails CLOSED — only allow-listed shapes pass.
+  // …) fails CLOSED; only allow-listed shapes pass.
   return {
     allowed: false,
     kind,

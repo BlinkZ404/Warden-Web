@@ -37,19 +37,26 @@ export interface SeededBug {
   /** Input that reproduces the crash. */
   triggeringInput: unknown;
   /**
-   * Generic reproduction descriptor — the shape a live Sentry frame (the culprit
+   * Generic reproduction descriptor: the shape a live Sentry frame (the culprit
    * `export`) + captured request (the positional `args`) yields. When present,
    * the gate reproduces the error via reproduce.js `--call` mode instead of a
    * named scenario, exercising the engine that live incidents will use. In sim
    * it's sourced from this catalog; live event-extraction is still pending.
    */
   repro?: { module: string; export: string; args: unknown[] };
+  /**
+   * Known-good inputs for the no-new-errors smoke battery (§5.3, AUDIT H4): the
+   * culprit export is replayed on each after the fix, and any that now throw is a
+   * regression the fix introduced. Only used alongside a generic `repro`
+   * descriptor; sim-only (live smoke-test generation is the follow-up).
+   */
+  smokeInputs?: unknown[];
   /** Turns correct code → buggy (production state). */
   inject: CodeEdit;
   /** Turns buggy code → fixed. */
   fix: CodeEdit;
   /**
-   * An extra, unrelated edit the sim Fixer also applies — used to model a
+   * An extra, unrelated edit the sim Fixer also applies; used to model a
    * sloppy / over-scoped patch. The Reviewer's real scope check then flags an
    * unrelated file and the incident escalates instead of auto-handling
    * (PLAN §5.4, §10: surface disagreement as escalation).
@@ -97,16 +104,26 @@ export const SEEDED_BUGS: SeededBug[] = [
     rootCause:
       "computeCheckoutTotal assumes every line item has a populated `price` object, but promo / free-gift items come through with `price` omitted. Reading `item.price.amount` on those items throws a TypeError and crashes the whole basket.",
     fixSummary:
-      "Treat line items with no price (e.g. free gifts) as costing 0 instead of crashing the checkout. No price is ever charged differently — only the crash is removed.",
+      "Treat line items with no price (e.g. free gifts) as costing 0 instead of crashing the checkout. Pricing stays the same; only the crash is removed.",
     reproScenario: "checkout-missing-price",
     triggeringInput: CHECKOUT_CRASH_CART,
     // Generic-path descriptor (the live seam). `args` is always a positional
-    // argument list — the cart is one object, so it's wrapped: [cart].
+    // argument list; the cart is one object, so it's wrapped: [cart].
     repro: {
       module: "src/checkout.js",
       export: "computeCheckoutTotal",
       args: [CHECKOUT_CRASH_CART],
     },
+    smokeInputs: [
+      { taxRate: 0.08, items: [{ sku: "TEE", price: { amount: 2000 }, quantity: 2 }] },
+      {
+        taxRate: 0,
+        items: [
+          { sku: "PEN", price: { amount: 150 }, quantity: 1 },
+          { sku: "PAD", price: { amount: 450 }, quantity: 3 },
+        ],
+      },
+    ],
     inject: { file: "src/checkout.js", find: CHECKOUT_GOOD, replace: CHECKOUT_BAD },
     fix: { file: "src/checkout.js", find: CHECKOUT_BAD, replace: CHECKOUT_GOOD },
   },
@@ -157,7 +174,7 @@ export const SEEDED_BUGS: SeededBug[] = [
   },
   {
     // Clean, tightly-scoped fix that passes preview verification and is
-    // approved — but production error rate spikes after promotion, exercising
+    // approved, but production error rate spikes after promotion, exercising
     // the auto-rollback path.
     key: "checkout-prod-regression",
     fingerprint: "checkout-service/computeCheckoutTotal/TypeError-amount-prodreg",

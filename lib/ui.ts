@@ -1,4 +1,4 @@
-/** Pure UI helpers — safe to import from client components (no server deps). */
+/** Pure UI helpers: safe to import from client components (no server deps). */
 import type { IncidentStatus } from "@/lib/db/types";
 
 export interface Stage {
@@ -80,3 +80,10 @@ export function relativeTime(date: string | Date): string {
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.round(hrs / 24)}d ago`;
 }
+
+/** A 0..1 rate as a rounded percentage, or a dash when null (no signal yet). */
+export const pct = (r: number | null) => (r == null ? "—" : `${Math.round(r * 100)}%`);
+
+/** A duration in seconds rendered compactly (seconds under 90s, else minutes). */
+export const dur = (s: number | null) =>
+  s == null ? "—" : s < 90 ? `${Math.round(s)}s` : `${Math.round(s / 60)}m`;

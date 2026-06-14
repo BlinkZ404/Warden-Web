@@ -6,7 +6,7 @@
  *    worker mid-pipeline loses nothing.
  *  - Idempotent: each step checks whether its artifact already exists before
  *    redoing work, and transition() is a no-op if already in the target state.
- *  - One transition per call: the incident can only walk the legal lifecycle —
+ *  - One transition per call: the incident can only walk the legal lifecycle;
  *    there is no path that reaches `deploying` without passing verification and
  *    a human approval row.
  *  - Agents have NO deploy authority. The only thing that moves an incident out
@@ -29,6 +29,7 @@ import {
   markDeploymentPromoted,
   markDeploymentRolledBack,
   recordOutcome,
+  getOutcome,
 } from "@/lib/repo/artifacts";
 import { bumpScorecard } from "@/lib/repo/scorecard";
 import { transition, isBoundary } from "@/lib/statemachine";
@@ -46,10 +47,12 @@ import {
   runTests,
   reproduce,
   reproduceCall,
+  smokeNewErrors,
   createBranch,
   applyPatch,
   commitAll,
   diffText,
+  diffStat,
 } from "@/lib/adapters/workspace";
 import type { ReproDescriptor } from "@/lib/adapters/workspace";
 import type { FixAttempt } from "@/lib/db/types";
@@ -60,22 +63,26 @@ import {
   verifyProdHealth,
   currentProdDeployment,
 } from "@/lib/adapters/deploy";
-import { consensusOf, verificationGate } from "@/lib/policy/gate";
+import { consensusOf, verificationGate, policyGate, deployParityOk } from "@/lib/policy/gate";
+import { scopePolicy } from "@/lib/runtime-config";
+import { extractReproDescriptor } from "@/lib/agents/repro";
 import { notifyApprovalNeeded } from "@/lib/notify";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 
-const MIN_CONFIDENCE = 0.5; // §5.8: when uncertain, escalate — don't guess.
+const MIN_CONFIDENCE = 0.5; // §5.8: when uncertain, escalate; don't guess.
 
 /** Reconstruct error context from the ingest event (works in live + sim). */
 async function sentryContextFor(incident: Incident): Promise<SentryContext> {
   const events = await listEvents(incident.id);
   const ingest = events.find((e) => e.type === "ingest");
-  const p = (ingest?.payload ?? {}) as Record<string, string>;
+  const p = (ingest?.payload ?? {}) as Record<string, unknown>;
   return {
     externalId: incident.external_id,
-    errorType: p.errorType ?? "Error",
-    errorMessage: p.errorMessage ?? incident.title,
-    culpritFile: p.culpritFile,
+    errorType: String(p.errorType ?? "Error"),
+    errorMessage: String(p.errorMessage ?? incident.title),
+    culpritFile: p.culpritFile as string | undefined,
+    culpritFunction: p.culpritFunction as string | undefined,
+    triggeringRequest: p.triggeringRequest,
     service: incident.service,
   };
 }
@@ -106,7 +113,7 @@ async function escalateGate(
 
 /**
  * Ensure the workspace exists AND the fix branch is reconstructed from the
- * persisted patch — so review/verify can resume on a fresh instance instead of
+ * persisted patch, so review/verify can resume on a fresh instance instead of
  * escalating (PLAN §6: stateless, resumable).
  */
 async function ensureFixWorkspace(incident: Incident, fa: FixAttempt): Promise<void> {
@@ -149,7 +156,7 @@ async function stepTriaging(incident: Incident) {
         status: s.status,
         similarity: Number(Number(s.similarity).toFixed(3)),
       })),
-      note: "Similar to a past incident — recognized via pgvector.",
+      note: "Similar to a past incident (recognized via pgvector).",
     });
   }
 
@@ -163,15 +170,18 @@ async function stepInvestigating(incident: Incident) {
   let inv = await latestInvestigation(incident.id);
   if (!inv) {
     const investigator = getInvestigator();
-    const result = await investigator.investigate(
-      incident,
-      await sentryContextFor(incident),
-    );
+    const sentry = await sentryContextFor(incident);
+    const result = await investigator.investigate(incident, sentry);
+    const repro = extractReproDescriptor({
+      culpritFile: (result.context.culpritFile as string | undefined) ?? sentry.culpritFile,
+      culpritFunction: sentry.culpritFunction,
+      request: sentry.triggeringRequest,
+    });
     inv = await createInvestigation({
       incident_id: incident.id,
       root_cause: result.rootCause,
       confidence: result.confidence,
-      context: result.context,
+      context: repro ? { ...result.context, repro } : result.context,
     });
     await logAgentAction(incident.id, investigator.name, "investigated", {
       rootCause: result.rootCause,
@@ -238,6 +248,22 @@ async function stepUnderReview(incident: Incident) {
   if (!fa) throw new Error("review step: fix attempt missing");
   await ensureFixWorkspace(incident, fa); // resume on a fresh instance
 
+  const root = workspacePath(incident.id);
+  const stat = await diffStat(root, "main", fa.branch!);
+  const scope = policyGate(
+    { files: stat.files, filesChanged: stat.filesChanged, churn: stat.insertions + stat.deletions },
+    scopePolicy(),
+  );
+  if (!scope.pass) {
+    await escalateGate(
+      incident.id,
+      "scope",
+      scope.reasons,
+      `fix scope policy failed: ${scope.reasons.join("; ")}`,
+    );
+    return;
+  }
+
   // Run the reviewer PANEL (1–3 independent reviewers, ideally different model
   // families). Idempotent: only run reviewers that haven't recorded a row yet.
   const reviewers = getReviewers();
@@ -267,7 +293,7 @@ async function stepUnderReview(incident: Incident) {
         verdict: result.verdict,
         findings: result.findings,
       });
-      // Null = a concurrent/replayed run already recorded this reviewer — skip
+      // Null = a concurrent/replayed run already recorded this reviewer; skip
       // so the scorecard isn't double-counted (the DB unique index is the guard).
       if (!row) continue;
       await bumpScorecard(reviewer.name, "reviewer", { attempts: 1 });
@@ -319,18 +345,19 @@ async function stepVerifying(incident: Incident) {
       deployment_id: preview.deploymentId,
       preview_url: preview.previewUrl,
       prod_url: null,
+      built_commit_sha: fa.commit_sha ?? null,
     });
 
     // Deterministic gate (§5.3): tests + does the original error still reproduce?
     const tests = await runTests(root);
     const testsCollected = tests.testsRun ?? 0;
-    // `node --test` exits 0 even with ZERO test files — never treat that as a pass.
+    // `node --test` exits 0 even with ZERO test files; never treat that as a pass.
     const testPassed = tests.code === 0 && testsCollected > 0;
 
     // Reproduce the original error against the fixed tree. Prefer the generic
     // descriptor carried on the investigation (the live seam: culprit export +
     // captured args) and fall back to the seeded catalog scenario. Either way
-    // the signal is real — did the production-failing call stop throwing?
+    // the signal is real: did the production-failing call stop throwing?
     const inv = await latestInvestigation(incident.id);
     const descriptor = (inv?.context as { repro?: ReproDescriptor } | null)?.repro;
     let errorRecurred = false;
@@ -346,22 +373,28 @@ async function stepVerifying(incident: Incident) {
     }
 
     // Fail closed (§5.8): if we could neither run any tests nor reproduce the
-    // original error, the fix is NOT honestly verified — escalate instead of
+    // original error, the fix is NOT honestly verified; escalate instead of
     // recording a vacuous pass. Reaches here for a real live incident whose
-    // target has no tests and no reproduction harness yet (see GO-LIVE.md).
+    // target has no tests and no reproduction harness yet (see docs/operations/go-live.md).
     if (!reproChecked && testsCollected === 0) {
       await escalateGate(
         incident.id,
         "verification",
         ["could not verify: no tests collected and no reproduction available"],
-        "verification not possible — no tests and no reproduction harness",
+        "verification not possible: no tests and no reproduction harness",
       );
       return;
     }
 
-    // new_errors stays empty until a live error-signal source is wired (GO-LIVE);
-    // the UI surfaces this as "no new errors detected", not an affirmative check.
-    const newErrors: string[] = [];
+    let newErrors: string[] = [];
+    const smokeDescriptor =
+      descriptor ??
+      (bug?.repro
+        ? { module: bug.repro.module, export: bug.repro.export, args: bug.repro.args }
+        : null);
+    if (smokeDescriptor && bug?.smokeInputs?.length) {
+      newErrors = await smokeNewErrors(root, smokeDescriptor, bug.smokeInputs);
+    }
 
     v = await createVerification({
       fix_attempt_id: fa.id,
@@ -404,7 +437,7 @@ async function stepVerifying(incident: Incident) {
   });
   await transition(incident.id, "awaiting_approval", "system");
 
-  // Ping the founder: plain-English summary + a one-tap approval link (§8).
+  // Ping the founder: readable summary + a one-tap approval link (§8).
   await notifyApprovalNeeded({
     incidentId: incident.id,
     title: `Found a fix for the ${incident.service ?? "app"} crash`,
@@ -423,13 +456,23 @@ async function stepDeploying(incident: Incident) {
   const dep = await latestDeployment(fa.id);
 
   // Idempotent: if this deployment was already promoted (a crash-retry, or a
-  // racing worker got here first), do NOT promote again — just advance. Prevents
+  // racing worker got here first), do NOT promote again; just advance. Prevents
   // a double production promotion (PLAN §5 reversibility / no duplicate ship).
   if (dep?.promoted_at) {
     await transition(incident.id, "verifying_prod", "system", {
       prodUrl: dep.prod_url,
       note: "already promoted",
     });
+    return;
+  }
+
+  if (!deployParityOk(fa.commit_sha, dep?.built_commit_sha)) {
+    await escalateGate(
+      incident.id,
+      "deploy-parity",
+      ["built commit does not match verified commit"],
+      "deploy parity failed: the deployment was not built from the verified commit",
+    );
     return;
   }
 
@@ -460,7 +503,7 @@ async function stepVerifyingProd(incident: Incident) {
       incident.id,
       "prod-health",
       health.newErrors,
-      "production health could not be verified — needs human confirmation",
+      "production health could not be verified; needs human confirmation",
     );
     return;
   }
@@ -497,16 +540,20 @@ async function stepVerifyingProd(incident: Incident) {
 }
 
 async function stepRolledBack(incident: Incident) {
-  await recordOutcome({
-    incident_id: incident.id,
-    resolved: false,
-    recurred: true,
-    resolution_type: "none",
-    notes: "Auto-rolled back after a production regression; needs human follow-up.",
-  });
-  await transition(incident.id, "escalated", "system", {
-    reason: "rolled back; awaiting human decision",
-  });
+  // The rollback IS the resting state: a human reviews rolled-back incidents from
+  // the dashboard, so record the outcome once and stop. Escalating on top of an
+  // already-reverted incident only read as a confusing "escalated" status that
+  // disagreed with the revert metric. Guarded because recordOutcome isn't an
+  // upsert and this state can be re-entered on a reclaimed job.
+  if (!(await getOutcome(incident.id))) {
+    await recordOutcome({
+      incident_id: incident.id,
+      resolved: false,
+      recurred: true,
+      resolution_type: "none",
+      notes: "Auto-rolled back after a production regression; needs human follow-up.",
+    });
+  }
 }
 
 // ── dispatcher ───────────────────────────────────────────────────────────────
@@ -576,7 +623,7 @@ export async function runIncidentToBoundary(
   const maxSteps = opts.maxSteps ?? 40;
   for (let i = 0; i < maxSteps; i++) {
     if (opts.heartbeat && !(await opts.heartbeat())) {
-      // Lost our lease — another worker now owns this job. Stop cleanly.
+      // Lost our lease; another worker now owns this job. Stop cleanly.
       return (await getIncident(incidentId))!.status;
     }
     const current = await getIncident(incidentId);

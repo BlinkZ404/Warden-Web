@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   created_at     timestamptz NOT NULL DEFAULT now()
 );
 
--- deterministic gate results — this, not the agents, decides safety -----------
+-- deterministic gate results; this, not the agents, decides safety -----------
 CREATE TABLE IF NOT EXISTS verifications (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   fix_attempt_id uuid NOT NULL REFERENCES fix_attempts(id),

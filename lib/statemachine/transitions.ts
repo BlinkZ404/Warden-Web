@@ -2,7 +2,7 @@ import type { IncidentStatus } from "@/lib/db/types";
 
 /**
  * The incident lifecycle (PLAN §6). Only transitions listed here are legal;
- * anything else throws. This is the spine of the product — the orchestrator
+ * anything else throws. This is the spine of the product; the orchestrator
  * never "skips ahead" (e.g. detected → deploying is impossible), so there is no
  * code path that ships without passing through verification and approval.
  */
@@ -16,14 +16,14 @@ export const TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
   // The human gate. Approve → approved; reject → dismissed.
   awaiting_approval: ["approved", "dismissed", "escalated"],
   approved: ["deploying", "failed", "escalated"],
-  deploying: ["verifying_prod", "failed", "rolled_back"],
+  deploying: ["verifying_prod", "failed", "rolled_back", "escalated"],
   verifying_prod: ["resolved", "rolled_back", "failed"],
   // After an automatic rollback the incident is contained but not fixed.
   rolled_back: ["escalated", "failed", "resolved"],
   // A human can re-route an escalated incident.
   escalated: ["investigating", "dismissed", "resolved", "failed"],
   failed: ["escalated", "dismissed"],
-  // A shipped fix can still be reverted by the founder — "one tap to revert"
+  // A shipped fix can still be reverted by the founder ("one tap to revert")
   // (PLAN tagline, §2, §13). This is a human action, not an automated one; the
   // orchestrator never auto-leaves `resolved` (it stays a boundary).
   resolved: ["rolled_back"],

@@ -1,6 +1,6 @@
 /**
  * Deploy adapter (PLAN §7, §8). Default path for the founder ICP: deploy a
- * preview, verify, and on approval promote to prod — with one-tap rollback.
+ * preview, verify, and on approval promote to prod, with one-tap rollback.
  * Deploy credentials are NEVER exposed to the agents (§5.6): only this adapter
  * touches them.
  *
@@ -40,8 +40,8 @@ export async function deployPreview(
 ): Promise<PreviewDeployment> {
   if (live.deploy()) {
     // Deploy the EXACT verified commit. The fix branch must be pushed to the
-    // customer remote first so Vercel can build this SHA — see GO-LIVE.md
-    // "deploy parity". Without VERCEL_REPO_ID this fails closed (rather than
+    // customer remote first so Vercel can build this SHA (see docs/operations/go-live.md
+    // "deploy parity"). Without VERCEL_REPO_ID this fails closed (rather than
     // silently building the wrong tree). Omitting `target` yields a preview.
     const res = await fetch(
       `https://api.vercel.com/v13/deployments${config.vercel.teamId ? `?teamId=${config.vercel.teamId}` : ""}`,
@@ -70,7 +70,7 @@ export async function deployPreview(
   };
 }
 
-/** The current READY production deployment id — captured before promote so we can roll back TO it. */
+/** The current READY production deployment id, captured before promote so we can roll back TO it. */
 export async function currentProdDeployment(): Promise<string | null> {
   if (!live.deploy()) return null;
   const res = await fetch(
@@ -95,10 +95,10 @@ export async function promoteToProd(deploymentId: string): Promise<Promotion> {
 }
 
 /**
- * Vercel instant rollback: re-points the production alias to `restoreToId` — the
- * PREVIOUS-good production deployment — with no rebuild (§7). It must NOT be the
+ * Vercel instant rollback: re-points the production alias to `restoreToId`, the
+ * PREVIOUS-good production deployment, with no rebuild (§7). It must NOT be the
  * just-shipped bad deployment. After a rollback, Vercel disables auto-promotion
- * until undone — the state machine tracks `rolled_back`.
+ * until undone; the state machine tracks `rolled_back`.
  */
 export async function rollback(restoreToId: string): Promise<void> {
   if (live.deploy()) {
@@ -118,7 +118,7 @@ export async function rollback(restoreToId: string): Promise<void> {
  * explicit "this scenario regresses in prod" directive. In live mode the real
  * comparison isn't implemented yet, so we fail CLOSED: report `unverifiable` so
  * the orchestrator escalates for human confirmation instead of auto-resolving
- * an unverified production state (see GO-LIVE.md).
+ * an unverified production state (see docs/operations/go-live.md).
  */
 export async function verifyProdHealth(
   opts: { simulateRegression?: boolean } = {},
@@ -128,7 +128,7 @@ export async function verifyProdHealth(
       healthy: false,
       unverifiable: true,
       errorRateDelta: 0,
-      newErrors: ["prod health check not implemented — escalate for manual confirmation"],
+      newErrors: ["prod health check not implemented; escalate for manual confirmation"],
     };
   }
   if (opts.simulateRegression) {

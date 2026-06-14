@@ -9,20 +9,19 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const denied = checkApiSecret(req);
-  if (denied) return denied;
-  const { id } = await params;
-  const body = (await req.json().catch(() => ({}))) as { decidedBy?: string };
-  try {
-    const result = await recordRevert(id, body.decidedBy ?? "founder");
-    return Response.json(result);
-  } catch (e) {
-    if (e instanceof RevertStateError) {
-      return Response.json({ error: e.message }, { status: 409 });
-    }
-    throw e;
-  }
+ req: Request,
+ { params }: { params: Promise<{ id: string }> }) {
+ const denied = checkApiSecret(req);
+ if (denied) return denied;
+ const { id } = await params;
+ const body = (await req.json().catch(() => ({}))) as { decidedBy?: string };
+ try {
+ const result = await recordRevert(id, body.decidedBy ?? "founder");
+ return Response.json(result);
+ } catch (e) {
+ if (e instanceof RevertStateError) {
+ return Response.json({ error: e.message }, { status: 409 });
+ }
+ throw e;
+ }
 }

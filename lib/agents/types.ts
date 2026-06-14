@@ -11,6 +11,8 @@ export interface SentryContext {
   errorType: string;
   errorMessage: string;
   culpritFile?: string;
+  culpritFunction?: string;
+  triggeringRequest?: unknown;
   service?: string | null;
   raw?: Record<string, unknown>;
 }

@@ -1,6 +1,6 @@
 # Local dev/simulation database for Warden.
 #
-# In production this is Amazon Aurora PostgreSQL (Serverless v2) — see GO-LIVE.md.
+# In production this is Amazon Aurora PostgreSQL (Serverless v2); see docs/operations/go-live.md.
 # The code talks to both through the same `node-postgres` driver and the same
 # SQL; only DATABASE_URL changes. We use the `pgvector` image so the incident
 # memory (pgvector similarity) works locally exactly as it does on Aurora.

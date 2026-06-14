@@ -97,7 +97,7 @@ export interface SimilarIncident {
 }
 
 /**
- * pgvector cosine nearest-neighbour lookup — the "have we seen this before?"
+ * pgvector cosine nearest-neighbour lookup: the "have we seen this before?"
  * memory (PLAN §10/§13). Returns incidents whose embedding is most similar,
  * excluding the incident itself.
  */

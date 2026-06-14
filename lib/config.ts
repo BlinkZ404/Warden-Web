@@ -4,13 +4,13 @@
  * Warden runs in one of two modes:
  *
  *  - `simulation` (default): external SaaS that needs accounts/keys is simulated
- *    — Sentry as an error source, Vercel as a host, push-notification delivery,
- *    and the LLM agents' reasoning. Everything runs offline.
+ *    (Sentry as an error source, Vercel as a host, push-notification delivery,
+ *    and the LLM agents' reasoning). Everything runs offline.
  *
  *  - `live`: real adapters are used wherever the matching secret is present.
  *
  * The deterministic verification gate (running the target app's tests and
- * confirming the original error stops) is REAL in BOTH modes — it is the safety
+ * confirming the original error stops) is REAL in BOTH modes; it is the safety
  * gate and must never be faked (PLAN §5.3).
  */
 
@@ -19,7 +19,7 @@
 try {
   if (typeof process.loadEnvFile === "function") process.loadEnvFile(".env");
 } catch {
-  /* no .env file — rely on the ambient environment */
+  /* no .env file; rely on the ambient environment */
 }
 
 export type Mode = "simulation" | "live";
@@ -50,7 +50,7 @@ function intIn(name: string, def: number, min: number, max: number): number {
 }
 
 // Explicit reviewer panel (1–3). Unlike the providers above, these do NOT fall
-// back to AGENT_* — each is an opt-in slot, so you can run the cross-check on
+// back to AGENT_*; each is an opt-in slot, so you can run the cross-check on
 // different model families (REVIEWER_1=GLM, REVIEWER_2=DeepSeek, …).
 const reviewerPanel = [1, 2, 3].map((n) => ({
   baseUrl: str(`REVIEWER_${n}_BASE_URL`),
@@ -75,10 +75,10 @@ export const config = {
     anthropicModel: str("ANTHROPIC_MODEL", "claude-opus-4-8"),
     openaiApiKey: str("OPENAI_API_KEY"),
     // A chat-completions-compatible model. Codex models (gpt-5-codex) only work
-    // on /v1/responses and 400 on /v1/chat/completions — see GO-LIVE.md.
+    // on /v1/responses and 400 on /v1/chat/completions (see docs/operations/go-live.md).
     openaiModel: str("OPENAI_MODEL", "gpt-4.1"),
     embeddingApiKey: str("EMBEDDING_API_KEY"),
-    // OpenAI-compatible providers (preferred when set) — DeepSeek, GLM, etc.
+    // OpenAI-compatible providers (preferred when set): DeepSeek, GLM, etc.
     fixer: agentProvider("FIXER"),
     reviewer: agentProvider("REVIEWER"),
     investigator: agentProvider("INVESTIGATOR"),

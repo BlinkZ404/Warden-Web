@@ -5,15 +5,15 @@
  *
  *  1. Per-agent ACCURACY (from `agent_scorecard`). The counters are raw; the
  *     *rates* are derived here. Crucially these are anchored to the deterministic
- *     verification gate and production health — NOT an agent rating its own work.
+ *     verification gate and production health, NOT an agent rating its own work.
  *     The bumps credit `verified_passed`/`human_approved`/`regressions` to the
  *     FIXER (`fa.agent`); a reviewer row only ever accrues `attempts`. So the
- *     fixer-style rates are computed for `role='fixer'` ONLY — emitting a
+ *     fixer-style rates are computed for `role='fixer'` ONLY; emitting a
  *     "0% verified" for a reviewer would be a measurement artifact, not a fact.
  *
  *  2. Fleet / PMF rates (from the append-only `events` log + the artifact tables)
- *     — approval rate, autonomous-resolution rate, post-ship revert rate, and the
- *     detection→verified latency. All are aggregations over data the pipeline
+ *     (approval rate, autonomous-resolution rate, post-ship revert rate, and the
+ *     detection→verified latency). All are aggregations over data the pipeline
  *     already records; nothing here adds instrumentation.
  */
 import { query, queryOne } from "@/lib/db/client";
@@ -26,7 +26,7 @@ export function safeRate(num: number, den: number): number | null {
 /**
  * §10 kill-switch: a post-ship revert rate at or below this is healthy; above
  * it is the "stop expanding fix scope" signal. The threshold is a policy number,
- * so it lives here in the data layer — the dashboard renders the derived
+ * so it lives here in the data layer; the dashboard renders the derived
  * `revertWithinCeiling` boolean, not the bare number.
  */
 export const REVERT_RATE_CEILING = 0.05;
@@ -44,16 +44,20 @@ export interface FleetMetrics {
   reverted: number;
   /** Distinct incidents a human approved. */
   approved: number;
-  /** approved / reachedApproval — would a founder ship what Warden proposes? */
+  /** approved / reachedApproval: would a founder ship what Warden proposes? */
   approvalRate: number | null;
-  /** reachedApproval / (reached ∪ escalated) — share auto-handled vs escalated. */
+  /** reachedApproval / (reached ∪ escalated): share auto-handled vs escalated. */
   autonomyRate: number | null;
-  /** reverted / shipped — the kill-switch metric. */
+  /** reverted / shipped: the kill-switch metric. */
   revertRate: number | null;
   /** revertRate <= REVERT_RATE_CEILING; null when nothing has shipped yet. */
   revertWithinCeiling: boolean | null;
+  /** The kill-switch threshold itself, surfaced so the UI can label the ceiling. */
+  revertCeiling: number;
   /** Mean seconds from incident detected to the first passing gate (latency). */
   timeToVerifiedSec: number | null;
+  /** Mean seconds from incident detected to closed (MTTR), over resolved incidents. */
+  mttrSec: number | null;
 }
 
 export interface AgentAccuracy {
@@ -63,11 +67,11 @@ export interface AgentAccuracy {
   verified_passed: number;
   human_approved: number;
   regressions: number;
-  /** verified / attempts — fixer only (null for reviewers; see module note). */
+  /** verified / attempts: fixer only (null for reviewers; see module note). */
   verifyRate: number | null;
-  /** approved / verified — fixer only. */
+  /** approved / verified: fixer only. */
   approvalRate: number | null;
-  /** regressions / approved — fixer only. */
+  /** regressions / approved: fixer only. */
   regressionRate: number | null;
 }
 
@@ -86,6 +90,7 @@ interface FleetRow {
   shipped: number;
   reverted: number;
   time_to_verified_sec: number | null;
+  mttr_sec: number | null;
 }
 
 export async function computeMetrics(): Promise<Metrics> {
@@ -127,7 +132,14 @@ export async function computeMetrics(): Promise<Metrics> {
            WHERE v.test_passed AND NOT v.error_recurred
            GROUP BY fa.incident_id
          ) fp
-         JOIN incidents i ON i.id = fp.incident_id)                           AS time_to_verified_sec
+         JOIN incidents i ON i.id = fp.incident_id)                           AS time_to_verified_sec,
+      (SELECT (avg(extract(epoch FROM (o.closed_at - i.created_at))))::float8
+         FROM (
+           SELECT DISTINCT ON (incident_id) incident_id, closed_at
+           FROM outcomes WHERE resolved AND closed_at IS NOT NULL
+           ORDER BY incident_id, closed_at DESC
+         ) o
+         JOIN incidents i ON i.id = o.incident_id)                            AS mttr_sec
   `))!;
 
   const revertRate = safeRate(f.reverted, f.shipped);
@@ -143,7 +155,9 @@ export async function computeMetrics(): Promise<Metrics> {
     autonomyRate: safeRate(f.reached_approval, f.decided),
     revertRate,
     revertWithinCeiling: revertRate == null ? null : revertRate <= REVERT_RATE_CEILING,
+    revertCeiling: REVERT_RATE_CEILING,
     timeToVerifiedSec: f.time_to_verified_sec,
+    mttrSec: f.mttr_sec,
   };
 
   const rows = await agentRows;

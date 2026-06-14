@@ -1,4 +1,4 @@
-# Hardening audit — findings & disposition
+# Hardening audit: findings & disposition
 
 A multi-agent adversarial audit (10 dimensions, every finding independently
 verified) raised 39 issues; **28 confirmed real**, 11 dismissed as dead-code /
@@ -6,9 +6,10 @@ hypothetical / perf-only. This file tracks each confirmed finding and what was
 done. Status: ✅ fixed · 🛡️ made fail-closed + documented · 📋 documented as a
 go-live requirement.
 
-Big picture: the **simulation path is sound**; almost all critical/high issues
-are **live-mode-only** (the live adapters were written but never exercised — see
-GO-LIVE.md) or **fail-open behaviors made fail-closed** here.
+Big picture: the **simulation path is sound**: almost all critical/high issues
+are **live-mode-only** (the live adapters are written and fail-closed, pending
+live credentials to validate them; see
+[go-live.md](../operations/go-live.md)) or **fail-open behaviors made fail-closed** here.
 
 ## Critical
 | # | Finding | Disposition |
@@ -35,7 +36,7 @@ GO-LIVE.md) or **fail-open behaviors made fail-closed** here.
 | # | Finding | Disposition |
 |---|---|---|
 | M1 | Intra-step crash idempotency: `applyEdit` anchor consumed → wedged; `stepVerifying` double-deploy | ✅ `applyEdit`/`commitAll` made idempotent; dedupe deployment |
-| M2 | `guardMutation` fails OPEN (comment/multi-statement/CTE/`WHERE 1=1`) — currently dead code | ✅ fail-closed classifier + adversarial tests |
+| M2 | `guardMutation` fails OPEN (comment/multi-statement/CTE/`WHERE 1=1`): currently dead code | ✅ fail-closed classifier + adversarial tests |
 | M3 | Sentry webhook fails open when `SENTRY_CLIENT_SECRET` unset in live | ✅ hard-gated in live (503 misconfig / 401 bad sig) |
 | M4 | Live reviewer uses `gpt-5-codex` on `/chat/completions` (rejected) | ✅ default model → chat-completions-compatible; defensive parse |
 | M5 | Human REJECT → dismissed untested | ✅ test added |
@@ -54,5 +55,5 @@ GO-LIVE.md) or **fail-open behaviors made fail-closed** here.
 | L7 | Notification permission not feature-guarded | ✅ capability check + distinct state |
 | L8 | Manifest icon lacks 192×192 (Chromium installability) | ✅ 192 added |
 
-See GO-LIVE.md "Known live-mode gaps" for the 📋 items that require your
+See [go-live.md](../operations/go-live.md) "Known live-mode gaps" for the 📋 items that require your
 accounts/keys to finish and test.

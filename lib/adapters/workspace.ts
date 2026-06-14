@@ -6,7 +6,7 @@
  * `.warden/workspaces/<incidentId>/`, seeded with a believable git history
  * (an import commit + the commit that "introduced" the bug). This gives:
  *
- *   - the Fixer a branch to work on (no merge, no deploy — PLAN §5.1),
+ *   - the Fixer a branch to work on (no merge, no deploy; PLAN §5.1),
  *   - the Reviewer real `git log`/`git diff`/`git blame` to analyze (PLAN §6/M6),
  *   - the verification gate a real tree to run tests + reproduction against.
  *
@@ -77,7 +77,7 @@ export async function prepareWorkspace(
   if (injectBug) {
     await applyEdit(root, injectBug.inject);
     await git(root, ["add", "-A"]);
-    // A plausible, recent culprit commit — the Reviewer will see the fix
+    // A plausible, recent culprit commit; the Reviewer will see the fix
     // overlaps this freshly-changed file.
     await git(root, ["commit", "-m", "feat: multi-currency pricing rollout"]);
   }
@@ -96,7 +96,7 @@ export async function workspaceExists(incidentId: string): Promise<boolean> {
 /**
  * Apply a find/replace edit to a file. Idempotent: if the anchor is gone but the
  * replacement is already present (e.g. a retry after a crash that already applied
- * this edit), it's a no-op rather than a hard failure — otherwise a re-run of the
+ * this edit), it's a no-op rather than a hard failure; otherwise a re-run of the
  * fix step would wedge the incident. Throws only when neither anchor nor result
  * is present (genuine drift).
  */
@@ -104,7 +104,7 @@ export async function applyEdit(root: string, edit: CodeEdit): Promise<void> {
   const file = join(root, edit.file);
   const before = await readFile(file, "utf8");
   if (!before.includes(edit.find)) {
-    if (before.includes(edit.replace)) return; // already applied — idempotent no-op
+    if (before.includes(edit.replace)) return; // already applied; idempotent no-op
     throw new Error(
       `applyEdit: anchor not found in ${edit.file}. The code may have drifted from the expected shape.`,
     );
@@ -188,7 +188,7 @@ export interface CommitInfo {
   subject: string;
 }
 
-/** Recent commits touching `file` (most recent first) — the "recently changed?" check. */
+/** Recent commits touching `file` (most recent first): the "recently changed?" check. */
 export async function fileHistory(
   root: string,
   file: string,
@@ -251,7 +251,7 @@ async function run(root: string, cmd: string, args: string[]): Promise<RunResult
 
 /**
  * Run the target app's test suite. Also reports how many tests were actually
- * collected — `node --test` exits 0 even when it finds ZERO test files, so the
+ * collected; `node --test` exits 0 even when it finds ZERO test files, so the
  * gate must not treat an empty run as a pass (a test-less repo would otherwise
  * sail through verification). The caller fails closed on testsRun === 0.
  */
@@ -278,7 +278,7 @@ export async function reproduce(
 }
 
 /**
- * Generic reproduction descriptor — the culprit export + positional args, the
+ * Generic reproduction descriptor: the culprit export + positional args, the
  * shape a live Sentry frame + captured request yields. `args` is ALWAYS a
  * positional argument list (wrap a single object as `[obj]`).
  */
@@ -302,6 +302,27 @@ export async function reproduceCall(
     "--call",
     JSON.stringify(descriptor),
   ]);
+}
+
+/**
+ * Regression smoke battery (AUDIT H4): replay known-good inputs on the fixed
+ * tree. Returns distinct error signatures introduced by the fix (empty = clean).
+ */
+export async function smokeNewErrors(
+  root: string,
+  descriptor: ReproDescriptor,
+  smokeRequests: unknown[],
+): Promise<string[]> {
+  const seen = new Set<string>();
+  for (const req of smokeRequests) {
+    const args = Array.isArray(req) ? req : [req];
+    const r = await reproduceCall(root, { ...descriptor, args });
+    if (r.code !== 0) {
+      const m = r.stderr.match(/THREW\s+(\w+)/);
+      seen.add(m ? m[1] : "Error");
+    }
+  }
+  return [...seen];
 }
 
 /** Best-effort cleanup of a workspace. */

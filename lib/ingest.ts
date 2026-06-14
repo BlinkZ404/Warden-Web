@@ -43,6 +43,8 @@ export async function ingestError(err: NormalizedError): Promise<IngestResult> {
       errorType: err.errorType,
       errorMessage: err.errorMessage,
       culpritFile: err.culpritFile,
+      culpritFunction: err.culpritFunction,
+      triggeringRequest: err.triggeringRequest,
       externalId: err.externalId,
       severity: err.severity,
     });
@@ -50,7 +52,7 @@ export async function ingestError(err: NormalizedError): Promise<IngestResult> {
     return { incidentId: incident.id, deduped: false };
   } catch (e) {
     // Concurrent ingest of the same fingerprint loses the race to the partial
-    // unique index — treat as a duplicate (the DB enforced our invariant).
+    // unique index; treat as a duplicate (the DB enforced our invariant).
     if (isUniqueViolation(e)) {
       const now = await findActiveByFingerprint(err.fingerprint);
       if (now) {

@@ -25,7 +25,7 @@ function investigatorProvider() {
 /**
  * Read-only investigation (PLAN §5.5, §6): the investigator may read the
  * database to gather context but connects with NO write authority. We exercise
- * that here via readOnlyQuery — any write issued in this path would throw.
+ * that here via readOnlyQuery; any write issued in this path would throw.
  */
 async function readOnlyContext(incident: Incident): Promise<Record<string, unknown>> {
   const priors = await readOnlyQuery<{ n: number }>(

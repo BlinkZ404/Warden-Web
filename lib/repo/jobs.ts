@@ -3,7 +3,7 @@ import type { Job } from "@/lib/db/types";
 
 /**
  * Add a kick to the queue. `run_after` is computed from the DATABASE clock
- * (now()), never the client clock — claimNext compares against now() too, and
+ * (now()), never the client clock; claimNext compares against now() too, and
  * host/container clock drift (e.g. Docker Desktop on WSL2) would otherwise make
  * a just-enqueued job look scheduled in the future and never get claimed.
  */
@@ -12,7 +12,7 @@ export async function enqueue(
   opts: { kind?: string; runAfterMs?: number } = {},
 ): Promise<Job> {
   const delayMs = Math.max(0, opts.runAfterMs ?? 0);
-  // At most ONE active (queued|running) job per incident — also enforced by a
+  // At most ONE active (queued|running) job per incident; also enforced by a
   // partial unique index (migration 0003), which closes the concurrent-enqueue
   // race. If one already exists, reuse it.
   const findActive = () =>
@@ -63,7 +63,7 @@ export async function claimNext(workerId: string): Promise<Job | null> {
 }
 
 /**
- * Mark a job done — but ONLY if this worker still owns the lease. A worker that
+ * Mark a job done, but ONLY if this worker still owns the lease. A worker that
  * was dispossessed by reclaimStale (its lease expired and another worker took
  * over) becomes a no-op instead of clobbering the usurper's job.
  */
@@ -90,7 +90,7 @@ export async function failJob(id: string, workerId: string, error: string): Prom
 
 /**
  * Refresh a running job's lease. Returns false if the lease was lost (the row is
- * no longer running under this worker) — the caller should stop work, because
+ * no longer running under this worker); the caller should stop work, because
  * another worker has taken over.
  */
 export async function heartbeat(id: string, workerId: string): Promise<boolean> {

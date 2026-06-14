@@ -42,7 +42,7 @@ describe("review row idempotency (DB invariant)", () => {
     await resetDatabase();
   });
 
-  it("one review per (fix_attempt, reviewer) — a replayed insert is a no-op", async () => {
+  it("one review per (fix_attempt, reviewer): a replayed insert is a no-op", async () => {
     const inc = await createIncident({ fingerprint: "fp-uniq", title: "x" });
     const fa = await createFixAttempt({
       incident_id: inc.id,
@@ -71,7 +71,7 @@ describe("review row idempotency (DB invariant)", () => {
   });
 });
 
-describe("reviewer panel — multi-reviewer run", () => {
+describe("reviewer panel: multi-reviewer run", () => {
   const review = config.review as { panelSize: number }; // config is `as const`
   const orig = review.panelSize;
   beforeEach(async () => {

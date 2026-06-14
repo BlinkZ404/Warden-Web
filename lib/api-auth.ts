@@ -4,9 +4,9 @@
  * it as `Authorization: Bearer <secret>` or `x-warden-secret`. When unset
  * (local dev / simulation) it's a no-op.
  *
- * This is a minimal CSRF/abuse guard — full multi-tenant auth (deriving the
+ * This is a minimal CSRF/abuse guard; full multi-tenant auth (deriving the
  * approver identity from an authenticated session rather than the request body)
- * is an explicit go-live item (PLAN §11; see GO-LIVE.md).
+ * is an explicit go-live item (PLAN §11; see docs/operations/go-live.md).
  */
 import { timingSafeEqual } from "node:crypto";
 

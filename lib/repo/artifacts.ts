@@ -82,7 +82,7 @@ export async function setFixAttemptStatus(
 /**
  * Idempotent: at most one review per (fix_attempt, reviewer). Returns the
  * inserted row, or `null` if a row already existed (a concurrent/replayed panel
- * run lost the race) — callers use that to avoid double-counting the scorecard.
+ * run lost the race); callers use that to avoid double-counting the scorecard.
  */
 export async function createReview(input: {
   fix_attempt_id: string;
@@ -191,11 +191,12 @@ export async function createDeployment(input: {
   preview_url: string | null;
   prod_url: string | null;
   promoted_at?: Date | null;
+  built_commit_sha?: string | null;
 }): Promise<Deployment> {
   return (await queryOne<Deployment>(
     `INSERT INTO deployments
-       (fix_attempt_id, provider, deployment_id, preview_url, prod_url, promoted_at)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+       (fix_attempt_id, provider, deployment_id, preview_url, prod_url, promoted_at, built_commit_sha)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
     [
       input.fix_attempt_id,
       input.provider ?? "vercel",
@@ -203,8 +204,19 @@ export async function createDeployment(input: {
       input.preview_url,
       input.prod_url,
       input.promoted_at ?? null,
+      input.built_commit_sha ?? null,
     ],
   ))!;
+}
+
+export async function setDeploymentBuiltCommit(
+  deploymentId: string,
+  builtCommitSha: string,
+): Promise<void> {
+  await query("UPDATE deployments SET built_commit_sha = $2 WHERE id = $1", [
+    deploymentId,
+    builtCommitSha,
+  ]);
 }
 
 export async function markDeploymentPromoted(

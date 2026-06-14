@@ -54,7 +54,8 @@ export async function resetDatabase(): Promise<void> {
     TRUNCATE TABLE
       events, investigations, fix_attempts, reviews, verifications,
       approvals, deployments, outcomes, jobs, push_subscriptions,
-      agent_scorecard, incidents
+      agent_scorecard, incidents, settings, providers,
+      wallet, wallet_ledger
     RESTART IDENTITY CASCADE;
   `);
 }

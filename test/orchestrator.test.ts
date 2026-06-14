@@ -46,7 +46,7 @@ describe("orchestrator resumability + idempotency (M3)", () => {
     const final = await runIncidentToBoundary(incidentId);
     expect(final).toBe("awaiting_approval");
 
-    // Idempotent: exactly one of each artifact — no work was duplicated.
+    // Idempotent: exactly one of each artifact; no work was duplicated.
     expect(await countBy("investigations", "incident_id", incidentId)).toBe(1);
     expect(await countBy("fix_attempts", "incident_id", incidentId)).toBe(1);
     const fa = await latestFixAttempt(incidentId);
@@ -110,7 +110,7 @@ describe("orchestrator resumability + idempotency (M3)", () => {
 
     await advanceIncident(incidentId);
 
-    // It escalates and never reaches approval — no human tap can override a
+    // It escalates and never reaches approval; no human tap can override a
     // failed deterministic gate.
     expect((await getIncident(incidentId))!.status).toBe("escalated");
     expect(await latestApproval(incidentId)).toBeNull();

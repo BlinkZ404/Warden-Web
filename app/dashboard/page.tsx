@@ -1,245 +1,282 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import type { IncidentRow } from "@/lib/view";
 import type { Metrics, FleetMetrics, AgentAccuracy } from "@/lib/repo/metrics";
-import { StatusBadge } from "@/app/_components/ui";
-import { relativeTime } from "@/lib/ui";
+import {
+ Frame,
+ Plus,
+ Label,
+ StatTiles,
+ PageHeader,
+ PageBody,
+ Button,
+} from "@/app/_components/console";
+import { IncidentsTable } from "@/app/_components/incidents-table";
+import { actorLabel } from "@/app/_components/brand";
+import { pct, dur } from "@/lib/ui";
 
 interface Bug {
-  key: string;
-  title: string;
+ key: string;
+ title: string;
 }
 
 export default function Dashboard() {
-  const [incidents, setIncidents] = useState<IncidentRow[]>([]);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [bugs, setBugs] = useState<Bug[]>([]);
-  const [firing, setFiring] = useState<string | null>(null);
+ const [incidents, setIncidents] = useState<IncidentRow[]>([]);
+ const [metrics, setMetrics] = useState<Metrics | null>(null);
+ const [bugs, setBugs] = useState<Bug[]>([]);
+ const [firing, setFiring] = useState<string | null>(null);
+ const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async () => {
-    const [incRes, metRes] = await Promise.all([
-      fetch("/api/incidents", { cache: "no-store" }),
-      fetch("/api/metrics", { cache: "no-store" }),
-    ]);
-    setIncidents((await incRes.json()).incidents ?? []);
-    setMetrics((await metRes.json()).metrics ?? null);
-  }, []);
+ const load = useCallback(async () => {
+ try {
+ const [incRes, metRes] = await Promise.all([
+ fetch("/api/incidents", { cache: "no-store" }),
+ fetch("/api/metrics", { cache: "no-store" }),
+ ]);
+ if (incRes.ok) setIncidents((await incRes.json()).incidents ?? []);
+ if (metRes.ok) setMetrics((await metRes.json()).metrics ?? null);
+ } catch {
+ // A transient fetch or parse failure should not tear down the dashboard;
+ // the current data stays on screen and the next poll recovers.
+ } finally {
+ setLoaded(true);
+ }
+ }, []);
 
-  useEffect(() => {
-    load();
-    fetch("/api/sim/fire")
-      .then((r) => r.json())
-      .then((d) => setBugs(d.bugs ?? []));
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
-  }, [load]);
+ useEffect(() => {
+ load();
+ fetch("/api/sim/fire")
+ .then((r) => r.json())
+ .then((d) => setBugs(d.bugs ?? []));
+ const t = setInterval(load, 3000);
+ return () => clearInterval(t);
+ }, [load]);
 
-  async function fire(bugKey: string) {
-    setFiring(bugKey);
-    try {
-      await fetch("/api/sim/fire", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ bugKey }),
-      });
-      await load();
-    } finally {
-      setFiring(null);
-    }
-  }
+ async function fire(bugKey: string) {
+ setFiring(bugKey);
+ try {
+ await fetch("/api/sim/fire", {
+ method: "POST",
+ headers: { "content-type": "application/json" },
+ body: JSON.stringify({ bugKey }),
+ });
+ await load();
+ } finally {
+ setFiring(null);
+ }
+ }
 
-  return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <header className="mb-8 flex items-end justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-[var(--color-accent)]">
-            Warden
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold">Incidents</h1>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">
-            The on-call engineer you don&apos;t have — every decision recorded in Aurora.
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <span className="text-xs text-[var(--color-muted)]">Trigger a demo incident</span>
-          <div className="flex flex-wrap justify-end gap-2">
-            {bugs.map((b) => (
-              <button
-                key={b.key}
-                onClick={() => fire(b.key)}
-                disabled={!!firing}
-                className="rounded-md border border-[var(--color-line)] bg-[var(--color-panel)] px-3 py-1.5 text-xs transition hover:border-[var(--color-accent)] disabled:opacity-50"
-                title={b.title}
-              >
-                {firing === b.key ? "firing…" : b.key}
-              </button>
-            ))}
-          </div>
-        </div>
-      </header>
+ return (
+ <div>
+ <PageHeader
+ title="incidents"
+ aside={<SimulateMenu bugs={bugs} firing={firing} onFire={fire} />}
+ />
 
-      {metrics && <FleetPanel fleet={metrics.fleet} />}
-      {metrics && <ScorecardStrip agents={metrics.agents} />}
+ <PageBody>
+ {loaded && incidents.length === 0 && <FirstRun bugs={bugs} firing={firing} onFire={fire} />}
+ {metrics && <FleetPanel fleet={metrics.fleet} />}
+ {metrics && <ScorecardStrip agents={metrics.agents} />}
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-[var(--color-line)]">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--color-panel)] text-left text-xs uppercase tracking-wide text-[var(--color-muted)]">
-            <tr>
-              <th className="px-4 py-3 font-medium">Incident</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Review</th>
-              <th className="px-4 py-3 font-medium">Tests</th>
-              <th className="px-4 py-3 font-medium">Memory</th>
-              <th className="px-4 py-3 font-medium">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {incidents.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-[var(--color-muted)]">
-                  No incidents yet. Trigger a demo incident above.
-                </td>
-              </tr>
-            )}
-            {incidents.map((i) => (
-              <tr
-                key={i.id}
-                className="border-t border-[var(--color-line)] transition hover:bg-[var(--color-panel)]"
-              >
-                <td className="px-4 py-3">
-                  <Link href={`/dashboard/${i.id}`} className="block">
-                    <div className="font-medium text-[var(--color-text)]">{i.title}</div>
-                    <div className="text-xs text-[var(--color-muted)]">{i.service}</div>
-                  </Link>
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={i.status} />
-                </td>
-                <td className="px-4 py-3">
-                  {i.reviews_total === 0 ? (
-                    <span className="text-[var(--color-muted)]">—</span>
-                  ) : (
-                    <span
-                      title="reviewers that approved / panel size"
-                      style={{
-                        color:
-                          i.reviews_approved === i.reviews_total
-                            ? "var(--color-ok)"
-                            : "var(--color-warn)",
-                      }}
-                    >
-                      {i.reviews_approved}/{i.reviews_total} ✓
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {i.test_passed === null ? (
-                    <span className="text-[var(--color-muted)]">—</span>
-                  ) : i.test_passed ? (
-                    <span className="text-[var(--color-ok)]">✓ pass</span>
-                  ) : (
-                    <span className="text-[var(--color-bad)]">✗ fail</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {i.seen_before ? (
-                    <span className="text-[var(--color-escalate)]" title="Recognized via pgvector">
-                      seen before
-                    </span>
-                  ) : (
-                    <span className="text-[var(--color-muted)]">new</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-[var(--color-muted)]">{relativeTime(i.updated_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </main>
-  );
+ <div className="mb-2.5 mt-7 flex items-center gap-2">
+ <Label>incidents</Label>
+ <span className="font-mono text-[10px] text-[var(--color-muted)]">[{incidents.length}]</span>
+ </div>
+ <Frame>
+ <IncidentsTable incidents={incidents} />
+ </Frame>
+ </PageBody>
+ </div>
+ );
 }
 
-const pct = (r: number | null) => (r == null ? "—" : `${Math.round(r * 100)}%`);
-const dur = (s: number | null) =>
-  s == null ? "—" : s < 90 ? `${Math.round(s)}s` : `${Math.round(s / 60)}m`;
+/** Header control to fire a sample incident: a dropdown of the seeded sandbox
+ * bugs, collapsed so it doesn't crowd the bar as the catalog grows. */
+function SimulateMenu({
+ bugs,
+ firing,
+ onFire,
+}: {
+ bugs: Bug[];
+ firing: string | null;
+ onFire: (key: string) => void;
+}) {
+ const [open, setOpen] = useState(false);
+ return (
+ <div className="relative">
+ <Button
+ variant="secondary"
+ size="sm"
+ onClick={() => setOpen((o) => !o)}
+ disabled={bugs.length === 0}
+ >
+ <Label className="text-[var(--color-muted)]">simulate</Label>
+ {firing ? (
+ <span className="font-mono text-[11px]">firing…</span>
+ ) : (
+ <span aria-hidden className="text-[10px]">
+ ▾
+ </span>
+ )}
+ </Button>
+ {open && (
+ <>
+ <button
+ aria-hidden
+ tabIndex={-1}
+ onClick={() => setOpen(false)}
+ className="fixed inset-0 z-20 cursor-default"
+ />
+ <div className="absolute right-0 z-30 mt-1.5 w-72 overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-panel)] shadow-lg">
+ <div className="border-b border-[var(--color-line)] px-3 py-2">
+ <Label>fire a sample incident</Label>
+ </div>
+ <div className="max-h-80 overflow-y-auto py-1">
+ {bugs.map((b) => (
+ <button
+ key={b.key}
+ onClick={() => {
+ onFire(b.key);
+ setOpen(false);
+ }}
+ disabled={!!firing}
+ className="block w-full cursor-pointer px-3 py-2 text-left transition hover:bg-[var(--color-panel-2)] disabled:cursor-not-allowed disabled:opacity-50"
+ >
+ <div className="font-mono text-xs text-[var(--color-text)]">{b.key}</div>
+ <div className="truncate text-[11px] text-[var(--color-muted)]">{b.title}</div>
+ </button>
+ ))}
+ </div>
+ </div>
+ </>
+ )}
+ </div>
+ );
+}
+
+/** Zero-config first incident: narrate the trust ladder and fire a real sandbox bug. */
+function FirstRun({
+ bugs,
+ firing,
+ onFire,
+}: {
+ bugs: Bug[];
+ firing: string | null;
+ onFire: (key: string) => void;
+}) {
+ const pick = bugs.find((b) => b.key === "checkout-missing-price") ?? bugs[0];
+ const ladder = [
+ "Fixes run on a branch in a sandbox, not your live code",
+ "Shows readable proof, not a diff to read",
+ "An independent multi-model panel cross-checks it",
+ "Nothing ships without your one tap; revert in one click",
+ ];
+ return (
+ <div className="relative mb-7">
+ <Frame innerClassName="p-7">
+ <Label>first run</Label>
+ <h2 className="mt-2 text-xl font-semibold tracking-tight">Watch Warden fix a bug</h2>
+ <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--color-muted)]">
+ No setup needed. Warden fires a real error into a sandbox app, then investigates, writes a
+ fix, runs verification checks, and waits for your approval to ship.
+ </p>
+ <div className="mt-4 grid gap-2 sm:grid-cols-2">
+ {ladder.map((l) => (
+ <div key={l} className="flex items-start gap-2 text-xs text-[var(--color-muted)]">
+ <span className="mt-0.5 text-[var(--color-ok)]">✓</span>
+ <span>{l}</span>
+ </div>
+ ))}
+ </div>
+ <Button
+ onClick={() => pick && onFire(pick.key)}
+ disabled={!pick || !!firing}
+ size="lg"
+ className="mt-5"
+ >
+ {firing ? "running…" : "▶ Run a sample incident"}
+ </Button>
+ </Frame>
+ </div>
+ );
+}
 
 /**
- * Fleet / PMF rates (BUSINESS-PLAN §10). Accuracy is the deterministic gate +
- * production health, never an agent rating itself — the revert rate is the
- * kill-switch.
+ * Fleet rates. Accuracy comes from verification results and production health,
+ * not from agents rating themselves; the revert rate is the kill-switch.
  */
 function FleetPanel({ fleet }: { fleet: FleetMetrics }) {
-  const tiles: { label: string; value: string; hint: string; tone?: string }[] = [
-    {
-      label: "Autonomy",
-      value: pct(fleet.autonomyRate),
-      hint: `${fleet.reachedApproval} auto-handled · ${fleet.escalated} escalated`,
-      tone: "var(--color-accent)",
-    },
-    {
-      label: "Approval rate",
-      value: pct(fleet.approvalRate),
-      hint: `${fleet.approved} of ${fleet.reachedApproval} verified fixes shipped`,
-      tone: "var(--color-ok)",
-    },
-    {
-      label: "Revert rate",
-      value: pct(fleet.revertRate),
-      hint: `${fleet.reverted} of ${fleet.shipped} shipped reverted`,
-      tone: fleet.revertWithinCeiling === false ? "var(--color-bad)" : "var(--color-ok)",
-    },
-    {
-      label: "Time to verified",
-      value: dur(fleet.timeToVerifiedSec),
-      hint: `${fleet.resolved} resolved of ${fleet.totalIncidents} incidents`,
-    },
-  ];
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {tiles.map((t) => (
-        <div key={t.label} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
-          <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">{t.label}</div>
-          <div className="mt-1 text-2xl font-semibold" style={t.tone ? { color: t.tone } : undefined}>
-            {t.value}
-          </div>
-          <div className="mt-1 text-xs text-[var(--color-muted)]">{t.hint}</div>
-        </div>
-      ))}
-    </div>
-  );
+ return (
+ <StatTiles
+ size="sm"
+ tiles={[
+ {
+ label: "Autonomy",
+ value: pct(fleet.autonomyRate),
+ hint: `${fleet.reachedApproval} auto-handled · ${fleet.escalated} escalated`,
+ tone: "var(--color-brand-2)",
+ },
+ {
+ label: "Approval rate",
+ value: pct(fleet.approvalRate),
+ hint: `${fleet.approved} of ${fleet.reachedApproval} shipped`,
+ tone: "var(--color-ok)",
+ },
+ {
+ label: "Revert rate",
+ value: pct(fleet.revertRate),
+ hint: `${fleet.reverted} of ${fleet.shipped} reverted`,
+ tone: fleet.revertWithinCeiling === false ? "var(--color-bad)" : "var(--color-ok)",
+ },
+ {
+ label: "Time to verified",
+ value: dur(fleet.timeToVerifiedSec),
+ hint: `${fleet.resolved} of ${fleet.totalIncidents} resolved`,
+ },
+ ]}
+ />
+ );
 }
 
 /**
- * Per-agent accuracy. Fixers show derived rates (verified/attempts → the gate
- * pass rate, etc.); reviewers show raw counts, since the gate-pass/approval/
- * regression credits structurally land on the fixer, not the reviewer.
+ * Per-agent accuracy. Fixers show derived rates; reviewers show raw counts,
+ * since the gate-pass / approval / regression credits land on the fixer.
  */
 function ScorecardStrip({ agents }: { agents: AgentAccuracy[] }) {
-  if (agents.length === 0) return null;
-  return (
-    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {agents.map((a) => (
-        <div key={`${a.agent}-${a.role}`} className="rounded-lg border border-[var(--color-line)] bg-[var(--color-panel)] p-3">
-          <div className="text-xs uppercase tracking-wide text-[var(--color-muted)]">
-            {a.agent} · {a.role}
-          </div>
-          {a.role === "fixer" ? (
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-              <span className="text-[var(--color-ok)]">verified <b>{pct(a.verifyRate)}</b></span>
-              <span className="text-[var(--color-accent)]">approved <b>{pct(a.approvalRate)}</b></span>
-              <span className="text-[var(--color-bad)]">regressions <b>{pct(a.regressionRate)}</b></span>
-              <span className="text-[var(--color-muted)]">{a.attempts} attempts</span>
-            </div>
-          ) : (
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-              <span>reviews <b>{a.attempts}</b></span>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+ if (agents.length === 0) return null;
+ return (
+ <div className="relative mt-4">
+ <div className="grid grid-cols-2 gap-px border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-4">
+ {agents.map((a) => (
+ <div key={`${a.agent}-${a.role}`} className="bg-[var(--color-panel)] p-4">
+ <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">
+ {actorLabel(a.agent)} <span className="opacity-40">·</span> {a.role}
+ </div>
+ {a.role === "fixer" ? (
+ <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs">
+ <span className="text-[var(--color-ok)]">
+ verified <b>{pct(a.verifyRate)}</b>
+ </span>
+ <span className="text-[var(--color-brand-2)]">
+ approved <b>{pct(a.approvalRate)}</b>
+ </span>
+ <span className="text-[var(--color-bad)]">
+ regress <b>{pct(a.regressionRate)}</b>
+ </span>
+ </div>
+ ) : (
+ <div className="mt-2 font-mono text-xs text-[var(--color-muted)]">
+ reviews <b className="text-[var(--color-text)]">{a.attempts}</b>
+ </div>
+ )}
+ </div>
+ ))}
+ </div>
+ <Plus at="tl" />
+ <Plus at="tr" />
+ <Plus at="bl" />
+ <Plus at="br" />
+ </div>
+ );
 }

@@ -14,7 +14,7 @@ import { logEvent } from "@/lib/events";
 /**
  * Reject endpoints that aren't public HTTPS push services. Enforced at EGRESS
  * (right before the outbound request), so a stored row that reached the table by
- * ANY path — not just the validated subscribe route — can't drive a (blind)
+ * ANY path (not just the validated subscribe route) can't drive a (blind)
  * SSRF. The subscribe route reuses this as a fast-fail.
  */
 export function isAllowedPushEndpoint(endpoint: string): boolean {

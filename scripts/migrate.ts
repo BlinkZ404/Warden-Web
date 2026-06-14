@@ -1,6 +1,6 @@
 /**
  * Migration runner CLI. Applies every migrations/*.sql file once, in order.
- * Idempotent — safe to retry after an interrupted run.
+ * Idempotent: safe to retry after an interrupted run.
  *
  *   npm run migrate
  */

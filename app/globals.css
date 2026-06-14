@@ -1,109 +1,135 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #080a0f;
-  --color-panel: #12151c;
-  --color-panel-2: #181c25;
-  --color-line: #232834;
-  --color-muted: #8b93a7;
-  --color-text: #e7eaf0;
-  --color-accent: #5b9cff;
-  --color-ok: #3fb950;
-  --color-warn: #d29922;
-  --color-bad: #f85149;
-  --color-escalate: #a371f7;
-  /* brand (requested #5C6795) + a lighter periwinkle and a cyan spark for glints */
-  --color-brand: #5c6795;
-  --color-brand-2: #98a3d0;
-  --color-spark: #7fe3ef;
+ --color-ink: #080a0f;
+ --color-panel: #12151c;
+ --color-panel-2: #181c25;
+ --color-line: #232834;
+ --color-muted: #8b93a7;
+ --color-text: #e7eaf0;
+ --color-accent: #5c6795;
+ --color-ok: #3fb950;
+ --color-warn: #d29922;
+ --color-bad: #f85149;
+ --color-escalate: #a371f7;
+ /* brand (requested #5C6795) + a lighter periwinkle and a cyan spark for glints */
+ --color-brand: #5c6795;
+ --color-brand-2: #98a3d0;
+ --color-spark: #7fe3ef;
+ --color-ring: #98a3d0;
+}
+
+:root[data-theme="light"] {
+ --color-ink: #fbfbfc;
+ --color-panel: #ffffff;
+ --color-panel-2: #f4f4f6;
+ --color-line: #e3e4e9;
+ --color-muted: #6b7280;
+ --color-text: #1a1c22;
+ --color-accent: #5c6795;
+ --color-brand: #5c6795;
+ --color-brand-2: #51598a;
+ --color-spark: #2196a8;
+ --color-ok: #1a7f37;
+ --color-warn: #9a6700;
+ --color-bad: #cf222e;
+ --color-escalate: #8250df;
 }
 
 html,
 body {
-  background: var(--color-ink);
-  color: var(--color-text);
-  -webkit-font-smoothing: antialiased;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+ background: var(--color-ink);
+ color: var(--color-text);
+ -webkit-font-smoothing: antialiased;
+ font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
-  border-color: var(--color-line);
+ border-color: var(--color-line);
+}
+
+/* One keyboard-focus indicator for every control, app-wide. Mouse clicks don't
+ trigger :focus-visible, so this never shows on pointer interaction. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+ outline: 2px solid var(--color-ring);
+ outline-offset: 2px;
+ border-radius: inherit;
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
-   Cinematic landing hero. Pure CSS (transform/opacity/filter) so the page stays
-   a zero-JS server component. Honors prefers-reduced-motion.
-   ─────────────────────────────────────────────────────────────────────────── */
+ Cinematic landing hero. Pure CSS (transform/opacity/filter) so the page stays
+ a zero-JS server component. Honors prefers-reduced-motion.
+ ─────────────────────────────────────────────────────────────────────────── */
 
-/* floating debris — a frozen-explosion of code fragments that slowly drifts */
+/* floating debris: a frozen explosion of code fragments that slowly drifts */
 @keyframes wd-float {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--r, 0deg)); }
-  50%      { transform: translate3d(var(--dx, 0), var(--dy, -14px), 0)
-                       rotate(calc(var(--r, 0deg) + var(--dr, 8deg))); }
+ 0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--r, 0deg)); }
+ 50% { transform: translate3d(var(--dx, 0), var(--dy, -14px), 0)
+ rotate(calc(var(--r, 0deg) + var(--dr, 8deg))); }
 }
 /* embers drifting upward out of the impact */
 @keyframes wd-drift {
-  0%   { transform: translateY(0) scale(1); opacity: 0; }
-  15%  { opacity: var(--o, 0.85); }
-  85%  { opacity: var(--o, 0.85); }
-  100% { transform: translateY(-130px) scale(0.5); opacity: 0; }
+ 0% { transform: translateY(0) scale(1); opacity: 0; }
+ 15% { opacity: var(--o, 0.85); }
+ 85% { opacity: var(--o, 0.85); }
+ 100% { transform: translateY(-130px) scale(0.5); opacity: 0; }
 }
 @keyframes wd-twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
 /* the aura behind the shield, breathing */
 @keyframes wd-aura {
-  0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(1); }
-  50%      { opacity: 0.9;  transform: translate(-50%, -50%) scale(1.14); }
+ 0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(1); }
+ 50% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.14); }
 }
 /* the shield itself: a gentle hover + a glow that pulses brand → spark */
 @keyframes wd-shield {
-  0%, 100% { transform: translateY(0);
-             filter: drop-shadow(0 0 10px var(--color-brand))
-                     drop-shadow(0 0 30px color-mix(in srgb, var(--color-brand) 55%, transparent)); }
-  50%      { transform: translateY(-7px);
-             filter: drop-shadow(0 0 16px var(--color-brand-2))
-                     drop-shadow(0 0 46px color-mix(in srgb, var(--color-spark) 40%, transparent)); }
+ 0%, 100% { transform: translateY(0);
+ filter: drop-shadow(0 0 10px var(--color-brand))
+ drop-shadow(0 0 30px color-mix(in srgb, var(--color-brand) 55%, transparent)); }
+ 50% { transform: translateY(-7px);
+ filter: drop-shadow(0 0 16px var(--color-brand-2))
+ drop-shadow(0 0 46px color-mix(in srgb, var(--color-spark) 40%, transparent)); }
 }
-/* an expanding sentinel ring — the "always watching" pulse */
+/* an expanding sentinel ring: the "always watching" pulse */
 @keyframes wd-ring {
-  0%   { transform: translate(-50%, -50%) scale(0.7); opacity: 0.6; }
-  100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; }
+ 0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0.6; }
+ 100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; }
 }
 /* a slow light sweep across the framed scene */
 @keyframes wd-sweep {
-  0%   { transform: translateX(-130%) skewX(-12deg); opacity: 0; }
-  35%  { opacity: 0.4; }
-  100% { transform: translateX(130%) skewX(-12deg); opacity: 0; }
+ 0% { transform: translateX(-130%) skewX(-12deg); opacity: 0; }
+ 35% { opacity: 0.4; }
+ 100% { transform: translateX(130%) skewX(-12deg); opacity: 0; }
 }
 
 .wd-vignette {
-  background:
-    radial-gradient(120% 85% at 50% 36%, transparent 42%, color-mix(in srgb, var(--color-ink) 90%, black) 100%),
-    radial-gradient(75% 55% at 50% 118%, color-mix(in srgb, var(--color-brand) 38%, transparent), transparent 72%),
-    radial-gradient(60% 40% at 50% 30%, color-mix(in srgb, var(--color-brand) 14%, transparent), transparent 70%);
+ background:
+ radial-gradient(120% 85% at 50% 36%, transparent 42%, color-mix(in srgb, var(--color-ink) 90%, black) 100%),
+ radial-gradient(75% 55% at 50% 118%, color-mix(in srgb, var(--color-brand) 38%, transparent), transparent 72%),
+ radial-gradient(60% 40% at 50% 30%, color-mix(in srgb, var(--color-brand) 14%, transparent), transparent 70%);
 }
 .wd-grain {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.wd-shard  { animation: wd-float var(--dur, 9s) ease-in-out infinite; animation-delay: var(--delay, 0s); will-change: transform; }
-.wd-spark  { animation: wd-twinkle var(--dur, 4s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
-.wd-ember  { animation: wd-drift var(--dur, 7s) linear infinite; animation-delay: var(--delay, 0s); will-change: transform, opacity; }
-.wd-aura   { animation: wd-aura 6s ease-in-out infinite; }
+.wd-shard { animation: wd-float var(--dur, 9s) ease-in-out infinite; animation-delay: var(--delay, 0s); will-change: transform; }
+.wd-spark { animation: wd-twinkle var(--dur, 4s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+.wd-ember { animation: wd-drift var(--dur, 7s) linear infinite; animation-delay: var(--delay, 0s); will-change: transform, opacity; }
+.wd-aura { animation: wd-aura 6s ease-in-out infinite; }
 .wd-shield { animation: wd-shield 6s ease-in-out infinite; }
-.wd-ring   { animation: wd-ring 4.5s ease-out infinite; }
-.wd-sweep  { animation: wd-sweep 9s ease-in-out infinite; }
-.wd-cta    { transition: box-shadow 0.25s ease, transform 0.25s ease, background-color 0.25s ease; }
+.wd-ring { animation: wd-ring 4.5s ease-out infinite; }
+.wd-sweep { animation: wd-sweep 9s ease-in-out infinite; }
+.wd-cta { transition: box-shadow 0.25s ease, transform 0.25s ease, background-color 0.25s ease; }
 .wd-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 44px -10px color-mix(in srgb, var(--color-brand) 80%, transparent);
+ transform: translateY(-2px);
+ box-shadow: 0 12px 44px -10px color-mix(in srgb, var(--color-brand) 80%, transparent);
 }
 .wd-ghost { transition: border-color 0.25s ease, background-color 0.25s ease, transform 0.25s ease; }
 .wd-ghost:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--color-brand) 70%, var(--color-line));
-  background-color: color-mix(in srgb, var(--color-brand) 12%, transparent);
+ transform: translateY(-2px);
+ border-color: color-mix(in srgb, var(--color-brand) 70%, var(--color-line));
+ background-color: color-mix(in srgb, var(--color-brand) 12%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wd-shard, .wd-spark, .wd-ember, .wd-aura, .wd-shield, .wd-ring, .wd-sweep { animation: none; }
-  .wd-ember { opacity: 0.5; }
+ .wd-shard, .wd-spark, .wd-ember, .wd-aura, .wd-shield, .wd-ring, .wd-sweep { animation: none; }
+ .wd-ember { opacity: 0.5; }
 }

@@ -17,7 +17,7 @@ test/               node:test suite (all green)
 scripts/reproduce.js  replays a specific production-failing request
 ```
 
-The committed code is **correct** — all tests pass. The demo *injects* a known
+The committed code is **correct**: all tests pass. The demo *injects* a known
 bug into an isolated per-incident git workspace (never this source tree) to
 reproduce a production crash, then lets Warden fix it. See
 `../lib/sim/bugs.ts` for the catalog of injectable bugs.

@@ -13,36 +13,35 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const denied = checkApiSecret(req);
-  if (denied) return denied;
-  const { id } = await params;
-  const body = (await req.json().catch(() => ({}))) as {
-    decision?: "approve" | "reject";
-    decidedBy?: string;
-    channel?: string;
-  };
-  if (body.decision !== "approve" && body.decision !== "reject") {
-    return Response.json({ error: "decision must be 'approve' or 'reject'" }, { status: 400 });
-  }
+ req: Request,
+ { params }: { params: Promise<{ id: string }> }) {
+ const denied = checkApiSecret(req);
+ if (denied) return denied;
+ const { id } = await params;
+ const body = (await req.json().catch(() => ({}))) as {
+ decision?: "approve" | "reject";
+ decidedBy?: string;
+ channel?: string;
+ };
+ if (body.decision !== "approve" && body.decision !== "reject") {
+ return Response.json({ error: "decision must be 'approve' or 'reject'" }, { status: 400 });
+ }
 
-  try {
-    await recordApproval({
-      incidentId: id,
-      decision: body.decision,
-      decidedBy: body.decidedBy ?? "founder",
-      channel: body.channel ?? "web",
-    });
-  } catch (e) {
-    if (e instanceof ApprovalStateError) {
-      return Response.json({ error: e.message }, { status: 409 });
-    }
-    throw e;
-  }
+ try {
+ await recordApproval({
+ incidentId: id,
+ decision: body.decision,
+ decidedBy: body.decidedBy ?? "founder",
+ channel: body.channel ?? "web",
+ });
+ } catch (e) {
+ if (e instanceof ApprovalStateError) {
+ return Response.json({ error: e.message }, { status: 409 });
+ }
+ throw e;
+ }
 
-  await drainJobs("approve");
-  const incident = await getIncident(id);
-  return Response.json({ status: incident?.status });
+ await drainJobs("approve");
+ const incident = await getIncident(id);
+ return Response.json({ status: incident?.status });
 }

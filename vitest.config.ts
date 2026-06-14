@@ -10,7 +10,7 @@ export default defineConfig({
   test: {
     environment: "node",
     // The pipeline does real git + Postgres work; give it room. Tests share a
-    // single database, so run every file strictly sequentially in ONE process —
+    // single database, so run every file strictly sequentially in ONE process;
     // otherwise one file's resetDatabase() TRUNCATE can fire mid-pipeline in
     // another and pull rows out from under it.
     testTimeout: 120_000,

@@ -31,3 +31,13 @@ npm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 tsconfig.tsbuildinfo
+
+# local AI / IDE tooling (never commit)
+.antigravitycli
+.antigravitycli/
+.claude
+.claude/
+.cursor
+.cursor/
+.grok
+.grok/

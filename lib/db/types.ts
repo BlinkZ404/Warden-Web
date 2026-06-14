@@ -62,7 +62,7 @@ export interface FixAttempt {
   diff_summary: string | null;
   files_changed: unknown | null;
   status: string;
-  diff: string | null; // unified patch (main..branch) — lets the workspace be rebuilt
+  diff: string | null; // unified patch (main..branch); lets the workspace be rebuilt
   created_at: Date;
 }
 
@@ -106,6 +106,8 @@ export interface Deployment {
   rolled_back: boolean;
   rolled_back_at: Date | null;
   prev_prod_deployment_id: string | null;
+  /** The commit the deployment was built from; must equal the verified SHA. */
+  built_commit_sha: string | null;
 }
 
 export interface Outcome {

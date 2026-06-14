@@ -9,7 +9,7 @@ import { getBugByKey } from "@/lib/sim/bugs";
 import { destroyWorkspace } from "@/lib/adapters/workspace";
 import { computeMetrics, safeRate } from "@/lib/repo/metrics";
 
-describe("metrics — derived accuracy & fleet rates", () => {
+describe("metrics: derived accuracy & fleet rates", () => {
   beforeEach(async () => {
     await resetDatabase();
   });

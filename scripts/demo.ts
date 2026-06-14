@@ -54,7 +54,7 @@ async function main() {
 
   await runMigrations();
 
-  console.log(`\n🛡️  ${C.b("Warden")} ${C.dim("— simulation mode")}\n`);
+  console.log(`\n🛡️  ${C.b("Warden")} ${C.dim("(simulation mode)")}\n`);
   console.log(`${C.b("[1] A production error fires")} ${C.dim("(Sentry → webhook)")}`);
   console.log(`    ${C.bad(bug.title)}`);
 
@@ -74,7 +74,7 @@ async function main() {
   const review = fa ? await latestReview(fa.id) : null;
   if (review) {
     const v = review.verdict === "approve" ? C.ok(review.verdict) : C.warn(review.verdict);
-    console.log(`    ${C.dim("review (codex):")} ${v} — ${(review.findings as { notes?: string[] })?.notes?.[0] ?? ""}`);
+    console.log(`    ${C.dim("review (codex):")} ${v}: ${(review.findings as { notes?: string[] })?.notes?.[0] ?? ""}`);
   }
   const ver = fa ? await latestVerification(fa.id) : null;
   if (ver) {
@@ -93,7 +93,7 @@ async function main() {
   if (inc!.status === "awaiting_approval") {
     console.log(`${C.b("[3] 📲 Founder gets a push:")} ${C.accent(`"Found a fix for the ${bug.service} crash."`)}`);
     console.log(`    ${C.dim("waiting for one-tap approval…")}\n`);
-    console.log(`${C.b("[4] ✅ Approved")} ${C.dim("(scripted for this unattended demo — a REAL approvals row)")}`);
+    console.log(`${C.b("[4] ✅ Approved")} ${C.dim("(scripted for this unattended demo; a REAL approvals row)")}`);
     await recordApproval({ incidentId, decision: "approve", decidedBy: "demo-script", channel: "script" });
     await drainJobs("demo");
     console.log(`    ${await statusLine(incidentId)}`);
@@ -103,7 +103,7 @@ async function main() {
       console.log(`    ${C.ok("shipped")} → ${dep.prod_url}`);
     if (dep?.rolled_back) console.log(`    ${C.warn("auto-rolled back")} after a production regression`);
   } else if (inc!.status === "escalated") {
-    console.log(`${C.b("[3] ⚠️  Escalated to a human")} ${C.dim("— the agents disagreed or the gate failed; not auto-handled")}`);
+    console.log(`${C.b("[3] ⚠️  Escalated to a human")} ${C.dim("(the agents disagreed or the gate failed; not auto-handled)")}`);
   }
 
   console.log(`\n${C.b("[5] Everything is recorded in Aurora")}`);

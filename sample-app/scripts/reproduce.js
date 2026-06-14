@@ -1,5 +1,5 @@
 // Replays the exact production-failing request so verification can confirm the
-// error has actually stopped — not just that tests pass.
+// error has actually stopped, not just that tests pass.
 //
 // Two modes:
 //   node scripts/reproduce.js <scenario> '<jsonInput>'        (named scenario)
@@ -7,7 +7,7 @@
 //
 // The generic `--call` mode is the live seam: given the culprit module + export
 // (from the stack frame) and the positional args (from the captured request),
-// it invokes the function directly — no hardcoded scenario needed. The named
+// it invokes the function directly; no hardcoded scenario needed. The named
 // scenarios are kept for the seeded catalog.
 //
 // Exit 0 = the code path ran without throwing (error stopped).

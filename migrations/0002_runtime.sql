@@ -7,7 +7,7 @@
 -- Lightweight job queue (PLAN §7 "SQS or lightweight job table"). The
 -- orchestrator is stateless: a job is just a kick that says "there is automated
 -- work to do on this incident". The worker re-reads incident state from the DB,
--- so killing it mid-run loses nothing — the lock expires and the job is
+-- so killing it mid-run loses nothing; the lock expires and the job is
 -- re-claimed.
 CREATE TABLE IF NOT EXISTS jobs (
   id           bigserial PRIMARY KEY,

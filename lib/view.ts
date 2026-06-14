@@ -1,6 +1,6 @@
 /**
  * Read-model assemblers shared by the API routes and the dashboard server
- * components. Pure reads — never mutate.
+ * components. Pure reads; never mutate.
  */
 import { query } from "@/lib/db/client";
 import { getIncident, listIncidents } from "@/lib/repo/incidents";
@@ -118,4 +118,28 @@ export async function listIncidentRows(limit = 100): Promise<IncidentRow[]> {
     test_passed: testMap.get(i.id) ?? null,
     seen_before: seenSet.has(i.id),
   }));
+}
+
+export interface AuditRow {
+  id: string;
+  type: string;
+  actor: string;
+  payload: Record<string, unknown>;
+  created_at: Date;
+  incident_id: string;
+  incident_title: string;
+}
+
+/** The global audit feed: every event across all incidents, newest first, with
+ *  the incident title joined for the cross-incident log view. */
+export async function listAuditFeed(limit = 200): Promise<AuditRow[]> {
+  return query<AuditRow>(
+    `SELECT e.id::text, e.type, e.actor, e.payload, e.created_at,
+            e.incident_id::text, COALESCE(i.title, '') AS incident_title
+       FROM events e
+       LEFT JOIN incidents i ON i.id = e.incident_id
+      ORDER BY e.id DESC
+      LIMIT $1`,
+    [limit],
+  );
 }

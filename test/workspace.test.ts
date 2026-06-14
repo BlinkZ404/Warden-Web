@@ -22,7 +22,7 @@ import { getBugByKey } from "@/lib/sim/bugs";
  * it (tests pass + the production-failing request stops throwing). The
  * verification gate is built on exactly these primitives.
  */
-describe("workspace adapter — real inject/fix/verify", () => {
+describe("workspace adapter: real inject/fix/verify", () => {
   it("checkout bug: fail before fix, pass after", async () => {
     const bug = getBugByKey("checkout-missing-price")!;
     const id = "wstest-checkout";
@@ -57,7 +57,7 @@ describe("workspace adapter — real inject/fix/verify", () => {
 
   it("generic --call reproduction: fail before fix, pass after (no named scenario)", async () => {
     // The live-seam engine: reproduce straight from a {module, export, args}
-    // descriptor — the shape a Sentry frame + captured request yields — with no
+    // descriptor: the shape a Sentry frame + captured request yields, with no
     // hardcoded scenario. Proves the gate can verify a catalog-less incident.
     const bug = getBugByKey("checkout-missing-price")!;
     const descriptor = bug.repro!;

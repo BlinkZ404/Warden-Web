@@ -23,9 +23,9 @@ function reviewerProvider() {
 
 /**
  * Reviewer = Codex (a different model family from the Fixer). The simulation
- * does REAL deterministic work on the actual diff and git history — scope,
+ * does REAL deterministic work on the actual diff and git history: scope,
  * whether the fix touches the file the error implicates, unrelated files, and
- * overlap with recently-changed code — rather than returning a canned verdict.
+ * overlap with recently-changed code, rather than returning a canned verdict.
  * This is the product's "verify-not-review" cross-check (PLAN §3, §5.4, §10),
  * so it must produce a real signal: disagreement → escalate.
  */
@@ -82,7 +82,7 @@ function simReviewer(name = "codex"): Reviewer {
     // Informational: overlap with the most recent commit on the base branch.
     if (changedByLatest.length > 0) {
       notes.push(
-        `Overlaps the most recent commit on ${baseRef}: ${changedByLatest.join(", ")} — verify the fix doesn't conflict.`,
+        `Overlaps the most recent commit on ${baseRef}: ${changedByLatest.join(", ")}. Verify the fix doesn't conflict.`,
       );
     }
 
@@ -107,7 +107,7 @@ function simReviewer(name = "codex"): Reviewer {
       verdict === "approve"
         ? "Independent review: scope looks right, touches only the implicated file."
         : verdict === "uncertain"
-          ? "Independent review raised concerns — escalating rather than auto-handling."
+          ? "Independent review raised concerns; escalating rather than auto-handling."
           : "Independent review rejected the patch.";
 
     return { verdict, summary, findings };
@@ -164,7 +164,7 @@ function makeLiveReviewer(provider: CompatProvider, name: string): Reviewer {
  */
 export function getReviewers(): Reviewer[] {
   if (config.isLive) {
-    // Warn (don't silently drop) a slot that's set but incomplete — otherwise a
+    // Warn (don't silently drop) a slot that's set but incomplete; otherwise a
     // typo'd key shrinks the panel below the operator's intent with no signal.
     const partial = config.agents.reviewers
       .map((p, i) => ({ p, i }))
@@ -184,7 +184,7 @@ export function getReviewers(): Reviewer[] {
                   .map(([k]) => k)
                   .join(", ")})`,
             )
-            .join("; ") + " — panel will run with fewer reviewers than intended.",
+            .join("; ") + "; panel will run with fewer reviewers than intended.",
       );
     }
 

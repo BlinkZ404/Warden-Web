@@ -2,7 +2,7 @@
  * Sentry error-source adapter (PLAN §7). A pluggable trigger: live mode parses
  * real Sentry issue webhooks (with HMAC signature verification); simulation mode
  * emits synthetic Sentry-shaped payloads for the seeded bugs, which flow through
- * the SAME normalize path — so ingest code isn't special-cased per mode.
+ * the same normalize path so ingest code is not special-cased per mode.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SeededBug } from "@/lib/sim/bugs";
@@ -17,6 +17,10 @@ export interface NormalizedError {
   errorType: string;
   errorMessage: string;
   culpritFile?: string;
+  /** Frame function that threw; used to build the reproduction descriptor. */
+  culpritFunction?: string;
+  /** Captured request body / args that triggered the crash. */
+  triggeringRequest?: unknown;
   firstSeen: Date;
   lastSeen: Date;
   raw: Record<string, unknown>;
@@ -35,6 +39,12 @@ export function verifySignature(
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+interface StackFrame {
+  function?: string;
+  filename?: string;
+  in_app?: boolean;
+}
+
 interface SentryIssuePayload {
   data?: {
     issue?: {
@@ -48,10 +58,16 @@ interface SentryIssuePayload {
       firstSeen?: string;
       lastSeen?: string;
     };
+    event?: {
+      exception?: { values?: { stacktrace?: { frames?: StackFrame[] } }[] };
+      request?: { method?: string; url?: string; data?: unknown };
+    };
   };
-  // Our synthetic payloads may carry an explicit fingerprint + culprit file.
+  // Synthetic payloads may carry explicit fingerprint + reproduction signal.
   _fingerprint?: string;
   _culpritFile?: string;
+  _culpritFunction?: string;
+  _triggeringRequest?: unknown;
 }
 
 function toDate(s?: string): Date {
@@ -59,14 +75,38 @@ function toDate(s?: string): Date {
   return Number.isNaN(d.getTime()) ? new Date() : d;
 }
 
+function pickCulpritFrame(frames: StackFrame[] | undefined): StackFrame | undefined {
+  if (!frames?.length) return undefined;
+  const inApp = frames.filter((f) => f.in_app !== false && f.filename);
+  const pool = inApp.length ? inApp : frames.filter((f) => f.filename);
+  return pool[pool.length - 1];
+}
+
+function pickTriggeringRequest(event?: { request?: { data?: unknown } }): unknown {
+  const req = event?.request;
+  if (!req) return undefined;
+  if (req.data !== undefined && req.data !== null) return req.data;
+  return req;
+}
+
 /** Map a Sentry issue webhook payload to our canonical error shape. */
 export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedError {
   const issue = payload.data?.issue ?? {};
   const meta = issue.metadata ?? {};
+  const event = payload.data?.event;
+  const frames = event?.exception?.values?.[0]?.stacktrace?.frames;
+  const frame = pickCulpritFrame(frames);
+
   const fingerprint =
     payload._fingerprint ??
     issue.fingerprint?.[0] ??
     `${issue.project ?? "unknown"}/${issue.culprit ?? "unknown"}/${meta.type ?? "Error"}`;
+
+  const culpritFile =
+    payload._culpritFile ?? frame?.filename ?? issue.culprit ?? undefined;
+  const culpritFunction = payload._culpritFunction ?? frame?.function ?? undefined;
+  const triggeringRequest =
+    payload._triggeringRequest ?? (event ? pickTriggeringRequest(event) : undefined);
 
   return {
     source: "sentry",
@@ -77,7 +117,9 @@ export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedE
     severity: issue.level ?? "error",
     errorType: meta.type ?? "Error",
     errorMessage: meta.value ?? issue.title ?? "",
-    culpritFile: payload._culpritFile ?? issue.culprit,
+    culpritFile,
+    culpritFunction,
+    triggeringRequest,
     firstSeen: toDate(issue.firstSeen),
     lastSeen: toDate(issue.lastSeen),
     raw: payload as Record<string, unknown>,
@@ -93,6 +135,7 @@ export function syntheticSentryEvent(
 ): SentryIssuePayload {
   simSeq += 1;
   const id = opts.externalId ?? `sim-issue-${bug.key}-${simSeq}`;
+  const repro = bug.repro;
   return {
     data: {
       issue: {
@@ -108,5 +151,7 @@ export function syntheticSentryEvent(
     },
     _fingerprint: bug.fingerprint,
     _culpritFile: bug.culpritFile,
+    _culpritFunction: repro?.export,
+    _triggeringRequest: repro?.args?.length === 1 ? repro.args[0] : repro?.args,
   };
 }

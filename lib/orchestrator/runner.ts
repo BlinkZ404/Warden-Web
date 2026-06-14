@@ -15,7 +15,9 @@ import {
 import { runIncidentToBoundary } from "@/lib/orchestrator/steps";
 import { getIncident } from "@/lib/repo/incidents";
 import { transition, canTransition } from "@/lib/statemachine";
-import { logError } from "@/lib/events";
+import { logEvent, logError } from "@/lib/events";
+import { hydrateSettings } from "@/lib/runtime-config";
+import { insufficientBalance } from "@/lib/billing";
 
 export interface DrainResult {
   processed: number;
@@ -26,6 +28,9 @@ export async function drainJobs(
   workerId = "worker-1",
   opts: { max?: number } = {},
 ): Promise<DrainResult> {
+  // Load the saved settings (run mode, billing mode, model assignments) so the
+  // pipeline + metering read the dashboard's choices, not just the ambient env.
+  await hydrateSettings();
   await reclaimStale();
   let processed = 0;
   const max = opts.max ?? 200;
@@ -34,6 +39,23 @@ export async function drainJobs(
     const job = await claimNext(workerId);
     if (!job) break;
     processed++;
+
+    // Managed inference runs on a prepaid balance: if it's empty, hold NEW work
+    // at the door (an in-flight incident is left to finish) until a top-up.
+    const inc = await getIncident(job.incident_id);
+    if (inc?.status === "detected" && (await insufficientBalance())) {
+      await logEvent(job.incident_id, "billing", "system", {
+        reason: "insufficient_balance",
+        note: "Managed inference paused: wallet balance is empty. Top up to continue.",
+      });
+      if (canTransition(inc.status, "escalated")) {
+        await transition(job.incident_id, "escalated", "system", {
+          reason: "insufficient balance; top up to continue",
+        });
+      }
+      await completeJob(job.id, workerId);
+      continue;
+    }
 
     try {
       // Heartbeat the lease between steps so a long-running job isn't reclaimed

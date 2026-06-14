@@ -10,7 +10,7 @@ function vec(d0: number, d1: number): number[] {
   return v;
 }
 
-describe("incident memory — pgvector similarity + threshold (audit M7)", () => {
+describe("incident memory: pgvector similarity + threshold (audit M7)", () => {
   beforeEach(async () => {
     await resetDatabase();
   });

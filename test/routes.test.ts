@@ -9,7 +9,7 @@ import { destroyWorkspace } from "@/lib/adapters/workspace";
 
 /**
  * Exercises the actual route handlers (body parsing, status codes, inline
- * drain) — not just the lib functions — since the approve/revert buttons are
+ * drain), not just the lib functions, since the approve/revert buttons are
  * the demo climax. Invokes the handlers with real Request objects.
  */
 function req(body?: unknown): Request {

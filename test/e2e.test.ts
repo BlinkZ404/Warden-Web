@@ -29,7 +29,7 @@ function payload(e: { payload: Record<string, unknown> }) {
   return e.payload as Record<string, unknown>;
 }
 
-describe("§13 acceptance — end to end (simulation mode)", () => {
+describe("§13 acceptance: end to end (simulation mode)", () => {
   beforeEach(async () => {
     await resetDatabase();
   });
@@ -56,7 +56,7 @@ describe("§13 acceptance — end to end (simulation mode)", () => {
     // The independent reviewer approved on real diff analysis.
     expect((await latestReview(fa!.id))!.verdict).toBe("approve");
 
-    // Human consents (scripted, but a REAL approvals row — gate is identical).
+    // Human consents (scripted, but a REAL approvals row; gate is identical).
     await recordApproval({
       incidentId,
       decision: "approve",
@@ -125,8 +125,9 @@ describe("§13 acceptance — end to end (simulation mode)", () => {
     });
     await drainJobs();
 
-    // Rolled back, then escalated for a human.
-    expect((await getIncident(incidentId))!.status).toBe("escalated");
+    // Auto-rolled back: the rollback is the resting state (a human reviews it),
+    // so it stays rolled_back rather than escalating on top of the revert.
+    expect((await getIncident(incidentId))!.status).toBe("rolled_back");
     const fa = await latestFixAttempt(incidentId);
     expect((await latestDeployment(fa!.id))!.rolled_back).toBe(true);
     const fixer = (await listScorecards()).find((c) => c.role === "fixer")!;

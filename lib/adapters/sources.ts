@@ -3,12 +3,12 @@
  *
  * An incident can originate from anything that observes production, not just
  * Sentry. Every source normalizes its payload into the same `NormalizedError`
- * and hands it to ingestError — so the orchestrator never knows or cares where
+ * and hands it to ingestError, so the orchestrator never knows or cares where
  * an incident came from.
  *
  * Sentry is fully wired (lib/adapters/sentry.ts + the webhook route). The three
  * below are clean, working seams that are intentionally NOT wired to routes in
- * v1 — they show how a new source plugs in without touching the pipeline.
+ * v1; they show how a new source plugs in without touching the pipeline.
  */
 import { createHash } from "node:crypto";
 import type { NormalizedError } from "@/lib/adapters/sentry";

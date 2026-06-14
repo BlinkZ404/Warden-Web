@@ -32,7 +32,7 @@ test("handles a promo line item with no price", () => {
     taxRate: 0.1,
     items: [
       { sku: "MUG", price: { amount: 1000 }, quantity: 1 },
-      { sku: "FREE-GIFT", quantity: 1 }, // no `price` — used to throw a TypeError
+      { sku: "FREE-GIFT", quantity: 1 }, // no `price`; used to throw a TypeError
     ],
   };
   const r = computeCheckoutTotal(cart);

@@ -3,7 +3,7 @@
  *
  * The whole app talks to Postgres through this one module so that local dev
  * (Docker pgvector) and production (Amazon Aurora PostgreSQL Serverless v2)
- * differ only by DATABASE_URL. No ORM — the schema is the product (PLAN §9), so
+ * differ only by DATABASE_URL. No ORM; the schema is the product (PLAN §9), so
  * we keep the SQL visible.
  */
 import { readFileSync } from "node:fs";
@@ -111,7 +111,7 @@ export async function withTransaction<T>(
 /**
  * Run a query under a READ-ONLY session (PLAN §5.6, §6: the investigation agent
  * connects with no write authority). Any INSERT/UPDATE/DELETE issued here throws
- * "cannot execute ... in a read-only transaction" — a real, demonstrable guard,
+ * "cannot execute ... in a read-only transaction": a real, demonstrable guard,
  * not a convention. In production this is backed by a dedicated read-only DB
  * role; here we enforce it at the session level so the guarantee holds locally.
  */
@@ -121,7 +121,7 @@ export async function readOnlyQuery<T = Record<string, unknown>>(
 ): Promise<T[]> {
   const client = await getPool().connect();
   try {
-    // Scope read-only to a transaction so it auto-clears on COMMIT — otherwise
+    // Scope read-only to a transaction so it auto-clears on COMMIT; otherwise
     // a session-level flag would leak back into the pool and poison later
     // writes on the same connection.
     await client.query("BEGIN");
