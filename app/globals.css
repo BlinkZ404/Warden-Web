@@ -25,3 +25,93 @@ body {
 * {
   border-color: var(--color-line);
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Landing-page motion. Pure CSS (transform/opacity/box-shadow) so the page
+   stays a zero-JS server component. Honors prefers-reduced-motion.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ambient aurora glow that slowly breathes behind the hero */
+@keyframes warden-breathe {
+  0%, 100% { opacity: 0.35; transform: translateX(-50%) scale(1); }
+  50%      { opacity: 0.7;  transform: translateX(-50%) scale(1.18); }
+}
+/* slow radar sweep — the "always watching" motif */
+@keyframes warden-spin { to { transform: rotate(360deg); } }
+/* the live "on" dot */
+@keyframes warden-live {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-ok) 65%, transparent); }
+  60%      { box-shadow: 0 0 0 7px transparent; }
+}
+/* the traveling pulse: each pipeline node lights up in sequence, in its own
+   stage color, then settles back — a wave that repeats every 6s */
+@keyframes warden-node {
+  0%, 66%, 100% {
+    color: var(--color-muted);
+    border-color: var(--color-line);
+    background: var(--color-panel);
+    box-shadow: none;
+    transform: translateY(0);
+  }
+  10%, 26% {
+    color: var(--color-text);
+    border-color: var(--node-c);
+    background: color-mix(in srgb, var(--node-c) 18%, var(--color-panel));
+    box-shadow: 0 0 24px -3px var(--node-c), inset 0 0 0 1px var(--node-c);
+    transform: translateY(-3px);
+  }
+}
+/* the progress rail under the pipeline: red (crash) → blue (fixing) → green (shipped) */
+@keyframes warden-rail {
+  0%   { width: 4%;   background: var(--color-bad); }
+  45%  { background: var(--color-accent); }
+  100% { width: 100%; background: var(--color-ok); }
+}
+/* a scanner line sweeping down the incident card */
+@keyframes warden-scan {
+  0%   { top: -2%;  opacity: 0; }
+  12%  { opacity: 0.7; }
+  88%  { opacity: 0.7; }
+  100% { top: 102%; opacity: 0; }
+}
+@keyframes warden-flash { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+.warden-aurora {
+  animation: warden-breathe 7s ease-in-out infinite;
+  background: radial-gradient(closest-side,
+    color-mix(in srgb, var(--color-accent) 55%, transparent), transparent);
+}
+.warden-radar {
+  animation: warden-spin 14s linear infinite;
+  background: conic-gradient(from 0deg,
+    transparent 0deg,
+    color-mix(in srgb, var(--color-accent) 22%, transparent) 38deg,
+    transparent 70deg);
+}
+.warden-grid {
+  background-image:
+    linear-gradient(to right, var(--color-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(closest-side at 50% 42%, #000 30%, transparent 78%);
+          mask-image: radial-gradient(closest-side at 50% 42%, #000 30%, transparent 78%);
+}
+.warden-live { animation: warden-live 2s ease-in-out infinite; }
+.warden-node { animation: warden-node 6s ease-in-out infinite; animation-delay: calc(var(--i) * 1s); }
+.warden-rail { animation: warden-rail 6s ease-in-out infinite; }
+.warden-scan { animation: warden-scan 6s ease-in-out infinite; }
+.warden-flash { animation: warden-flash 2.4s ease-in-out infinite; }
+.warden-cta {
+  box-shadow: 0 0 0 0 transparent;
+  transition: box-shadow .25s ease, transform .25s ease, opacity .25s ease;
+}
+.warden-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px -6px color-mix(in srgb, var(--color-accent) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .warden-aurora, .warden-radar, .warden-live, .warden-node,
+  .warden-rail, .warden-scan, .warden-flash { animation: none; }
+  .warden-rail { width: 100%; background: var(--color-ok); }
+}
