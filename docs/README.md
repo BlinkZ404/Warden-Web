@@ -21,12 +21,6 @@ All project docs live under `docs/`. The repo root keeps only [README.md](../REA
 |-----|-------------|
 | [business/business-plan.md](business/business-plan.md) | ICP, positioning, economics, competitive landscape |
 
-## Content
-
-| Doc | Description |
-|-----|-------------|
-| [content/blog-autonomous-on-call.md](content/blog-autonomous-on-call.md) | Optional bonus blog post for submission |
-
 ## Sample app
 
 The bundled target app has its own [sample-app/README.md](../sample-app/README.md).
