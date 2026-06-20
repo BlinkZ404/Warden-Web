@@ -73,8 +73,8 @@ describe("metrics: derived accuracy & fleet rates", () => {
     const a = await ingestError(normalizeSentryWebhook(syntheticSentryEvent(ok)));
     await runIncidentToBoundary(a.incidentId);
 
-    // Disagreement path → escalates before verification.
-    const risky = getBugByKey("checkout-missing-price-risky")!;
+    // Disagreement that can't be tightened → escalates after the attempt cap.
+    const risky = getBugByKey("checkout-stubborn-scope")!;
     const b = await ingestError(normalizeSentryWebhook(syntheticSentryEvent(risky)));
     await runIncidentToBoundary(b.incidentId);
 

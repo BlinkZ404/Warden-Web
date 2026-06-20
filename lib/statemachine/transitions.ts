@@ -11,7 +11,10 @@ export const TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
   triaging: ["investigating", "dismissed", "escalated", "failed"],
   investigating: ["fix_proposed", "escalated", "failed", "dismissed"],
   fix_proposed: ["under_review", "escalated", "failed"],
-  under_review: ["verifying", "escalated", "failed"],
+  // under_review can loop back to fix_proposed: when a reviewer flags an
+  // actionable problem (an over-scoped patch), the orchestrator re-proposes a
+  // tighter fix with that feedback, bounded by MAX_FIX_ATTEMPTS, before escalating.
+  under_review: ["verifying", "fix_proposed", "escalated", "failed"],
   verifying: ["awaiting_approval", "escalated", "failed"],
   // The human gate. Approve → approved; reject → dismissed.
   awaiting_approval: ["approved", "dismissed", "escalated"],

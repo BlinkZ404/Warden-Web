@@ -27,6 +27,7 @@ export default function Dashboard() {
  const [bugs, setBugs] = useState<Bug[]>([]);
  const [firing, setFiring] = useState<string | null>(null);
  const [loaded, setLoaded] = useState(false);
+ const [clearing, setClearing] = useState(false);
 
  const load = useCallback(async () => {
  try {
@@ -67,11 +68,22 @@ export default function Dashboard() {
  }
  }
 
+ async function clear() {
+ if (!window.confirm("Clear all incidents? This wipes the simulated incidents, audit trail, and scorecard. Your keys, wallet, and settings are kept.")) return;
+ setClearing(true);
+ try {
+ await fetch("/api/sim/reset", { method: "POST" });
+ await load();
+ } finally {
+ setClearing(false);
+ }
+ }
+
  return (
  <div>
  <PageHeader
  title="incidents"
- aside={<SimulateMenu bugs={bugs} firing={firing} onFire={fire} />}
+ aside={<SimulateMenu bugs={bugs} firing={firing} onFire={fire} onClear={clear} clearing={clearing} />}
  />
 
  <PageBody>
@@ -97,10 +109,14 @@ function SimulateMenu({
  bugs,
  firing,
  onFire,
+ onClear,
+ clearing,
 }: {
  bugs: Bug[];
  firing: string | null;
  onFire: (key: string) => void;
+ onClear: () => void;
+ clearing: boolean;
 }) {
  const [open, setOpen] = useState(false);
  return (
@@ -147,6 +163,18 @@ function SimulateMenu({
  <div className="truncate text-[11px] text-[var(--color-muted)]">{b.title}</div>
  </button>
  ))}
+ </div>
+ <div className="border-t border-[var(--color-line)] p-1">
+ <button
+ onClick={() => {
+ onClear();
+ setOpen(false);
+ }}
+ disabled={clearing}
+ className="block w-full cursor-pointer rounded px-3 py-2 text-left text-[11px] text-[var(--color-bad)] transition hover:bg-[var(--color-panel-2)] disabled:cursor-not-allowed disabled:opacity-50"
+ >
+ {clearing ? "clearing…" : "Clear all incidents"}
+ </button>
  </div>
  </div>
  </>

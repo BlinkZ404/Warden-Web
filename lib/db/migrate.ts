@@ -59,3 +59,19 @@ export async function resetDatabase(): Promise<void> {
     RESTART IDENTITY CASCADE;
   `);
 }
+
+/**
+ * Clear simulated incidents and everything that hangs off them (the pipeline
+ * artifacts, the event log, the job queue, the agent scorecard), so a demo can
+ * start fresh. Config is deliberately preserved: settings, providers, the wallet,
+ * and push subscriptions all survive. Powers the dashboard "Clear incidents"
+ * action; gated to simulation mode at the route.
+ */
+export async function clearIncidents(): Promise<void> {
+  await exec(`
+    TRUNCATE TABLE
+      events, investigations, fix_attempts, reviews, verifications,
+      approvals, deployments, outcomes, jobs, agent_scorecard, incidents
+    RESTART IDENTITY CASCADE;
+  `);
+}

@@ -2,20 +2,13 @@
 
 **Tagline:** The on-call engineer you don't have. It catches production errors, fixes them, checks itself, and waits for your one-tap approval before anything ships.
 
-**Working name:** Warden. Swappable via find/replace. Alternatives: Greenlight, Keel, Quorum, Backstop.
+**Working name:** Warden.
 
 > Implementation status note (kept in sync with the code): the full incident
 > pipeline (M0–M11) is built and verified in **simulation mode** against a real
 > Postgres (Docker pgvector locally; Aurora-ready for prod) with a green §13
 > end-to-end test. The remaining work is inherently human/account-gated; see
 > [../operations/go-live.md](../operations/go-live.md).
-
-## 0. How to build this with Claude Code
-
-1. Open this file at `docs/product/plan.md`.
-2. Tell your coding agent: "Read docs/product/plan.md. Implement Milestone 0 only, then stop and let me review."
-3. Proceed milestone by milestone. Don't let it build everything at once; review after each.
-4. The Acceptance Criteria (§13) define "done" for v1. The Non-negotiables (§5) must never be violated by any code it writes.
 
 ## 1. The problem & who it's for
 
@@ -39,13 +32,11 @@ It is not a better debugger. It's the control plane that sits above the commodit
 
 Closest real competitor is Sentry Seer (error → root cause → PR → review). The edge is the founder ICP and the verify-not-review trust model.
 
-## 4. Hackathon fit (H0: Hack the Zero Stack)
+## 4. Platform fit
 
-- Track 2; Monetizable B2B app.
-- Required stack: primary data store = **Amazon Aurora PostgreSQL (Serverless v2)**; front end deployed on **Vercel**. Both satisfied (see §7).
-- Submission checklist: text description (name the DB), ~3-min demo video, published Vercel project link + Vercel Team ID, architecture diagram, storage-config screenshot proving Aurora usage.
-- Judging hooks: the DB is a state machine + event log + vector memory (Technical Implementation); readable approval UX (Design); solves a real founder pain (Impact); verify-not-review trust model (Originality).
-- Deadline: Jun 29, 2026, 5pm PDT.
+- Monetizable B2B SaaS.
+- Primary data store: **Amazon Aurora PostgreSQL (Serverless v2)** + pgvector; front end deployed on **Vercel**. Both satisfied (see §7).
+- The database does quadruple duty: state machine + event log + vector memory + agent scorecard.
 
 ## 5. Non-negotiables (the safety model: never violate)
 

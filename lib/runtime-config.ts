@@ -15,7 +15,7 @@
 import { allSettings } from "@/lib/repo/settings";
 import { MODEL_PROVIDERS, parseAssignment } from "@/lib/models";
 import type { CompatProvider } from "@/lib/agents/openai-compat";
-import type { ScopePolicy } from "@/lib/policy/gate";
+import { DEFAULT_DENY_GLOBS, type ScopePolicy } from "@/lib/policy/gate";
 
 let overlay: Record<string, string> = {};
 
@@ -109,17 +109,19 @@ export function sentryClientSecret(): string {
  return setting("SENTRY_CLIENT_SECRET");
 }
 
-/** The per-tenant blast-radius policy (file/churn limits + protected-path globs). */
+/**
+ * The per-tenant blast-radius policy (file/churn limits + protected-path globs).
+ * `DEFAULT_DENY_GLOBS` is always on; operator-configured globs are merged on top
+ * so an operator can only ever widen the protected set, never expose the floor.
+ */
 export function scopePolicy(): ScopePolicy {
- const denyRaw = setting("POLICY_DENY_GLOBS");
+ const operatorGlobs = setting("POLICY_DENY_GLOBS")
+  .split(/[\n,]/)
+  .map((s) => s.trim())
+  .filter(Boolean);
  return {
  maxFiles: intIn(setting("POLICY_MAX_FILES", "5"), 5, 1, 1000),
  maxChurn: intIn(setting("POLICY_MAX_CHURN", "120"), 120, 1, 1_000_000),
- denyGlobs: denyRaw
- ? denyRaw
- .split(/[\n,]/)
- .map((s) => s.trim())
- .filter(Boolean)
- : [],
+ denyGlobs: Array.from(new Set([...DEFAULT_DENY_GLOBS, ...operatorGlobs])),
  };
 }

@@ -9,6 +9,7 @@ import { listEvents } from "@/lib/repo/events";
 import { getBugByKey } from "@/lib/sim/bugs";
 import {
   latestFixAttempt,
+  countFixAttempts,
   latestReview,
   latestVerification,
   latestApproval,
@@ -100,15 +101,32 @@ describe("§13 acceptance: end to end (simulation mode)", () => {
     await destroyWorkspace(incidentId);
   });
 
-  it("disagreement → escalated (over-scoped fix is caught by the reviewer)", async () => {
+  it("disagreement → auto-revised: the reviewer's scope feedback is fed back and the tighter fix passes", async () => {
     const { incidentId } = await fire("checkout-missing-price-risky");
     await drainJobs();
-    expect((await getIncident(incidentId))!.status).toBe("escalated");
+
+    // The over-scoped first attempt is caught, fed back, and the tightened second
+    // attempt passes review + verification: it reaches the human gate, not escalation.
+    expect((await getIncident(incidentId))!.status).toBe("awaiting_approval");
+    expect(await countFixAttempts(incidentId)).toBeGreaterThanOrEqual(2);
+    expect((await listEvents(incidentId)).some((e) => e.type === "revision")).toBe(true);
+
     const fa = await latestFixAttempt(incidentId);
-    const review = await latestReview(fa!.id);
-    expect(["uncertain", "reject"]).toContain(review!.verdict);
-    // It never reached verification/approval.
+    expect((await latestReview(fa!.id))!.verdict).toBe("approve");
+    expect((await latestVerification(fa!.id))!.test_passed).toBe(true);
+    await destroyWorkspace(incidentId);
+  });
+
+  it("bounded: a stubbornly over-scoped fix escalates after MAX attempts and never ships", async () => {
+    const { incidentId } = await fire("checkout-stubborn-scope");
+    await drainJobs();
+
+    expect((await getIncident(incidentId))!.status).toBe("escalated");
+    expect(await countFixAttempts(incidentId)).toBe(3); // MAX_FIX_ATTEMPTS
+    // The last attempt never reached verification; nothing shipped.
+    const fa = await latestFixAttempt(incidentId);
     expect(await latestVerification(fa!.id)).toBeNull();
+    expect(await latestApproval(incidentId)).toBeNull();
     await destroyWorkspace(incidentId);
   });
 

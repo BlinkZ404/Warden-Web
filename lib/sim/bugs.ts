@@ -56,12 +56,18 @@ export interface SeededBug {
   /** Turns buggy code → fixed. */
   fix: CodeEdit;
   /**
-   * An extra, unrelated edit the sim Fixer also applies; used to model a
-   * sloppy / over-scoped patch. The Reviewer's real scope check then flags an
-   * unrelated file and the incident escalates instead of auto-handling
-   * (PLAN §5.4, §10: surface disagreement as escalation).
+   * An extra, unrelated edit the sim Fixer also applies; models a sloppy /
+   * over-scoped patch. The Reviewer's real scope check flags the unrelated file,
+   * and the orchestrator feeds that back for a tighter re-proposal (the
+   * fix-iterate loop) rather than escalating on the first objection.
    */
   sloppyFix?: CodeEdit;
+  /**
+   * If set, the over-scoped `sloppyFix` is re-applied even on a revision, so the
+   * fix-iterate loop never converges and escalates after MAX_FIX_ATTEMPTS;
+   * exercises the bounded-autonomy guarantee.
+   */
+  stubbornSloppy?: boolean;
   /**
    * If set, the fix passes preview verification but production health degrades
    * after promotion (a spike only visible in prod), triggering auto-rollback
@@ -192,6 +198,33 @@ export const SEEDED_BUGS: SeededBug[] = [
     inject: { file: "src/checkout.js", find: CHECKOUT_GOOD, replace: CHECKOUT_BAD },
     fix: { file: "src/checkout.js", find: CHECKOUT_BAD, replace: CHECKOUT_GOOD },
     simProdRegresses: true,
+  },
+  {
+    // Bounded autonomy: the Fixer keeps over-scoping the patch (the unrelated
+    // file comes back on every revision), so after MAX_FIX_ATTEMPTS Warden
+    // escalates to a human instead of looping forever or shipping it.
+    key: "checkout-stubborn-scope",
+    fingerprint: "checkout-service/computeCheckoutTotal/TypeError-amount-stubborn",
+    title: "TypeError in checkout (won't-tighten scenario)",
+    service: "checkout-service",
+    severity: "error",
+    errorType: "TypeError",
+    errorMessage: "Cannot read properties of undefined (reading 'amount')",
+    culpritFile: "src/checkout.js",
+    rootCause:
+      "Same as the checkout TypeError, used to exercise bounded autonomy: the fix keeps over-scoping, so Warden escalates to a human after a few tries rather than looping forever.",
+    fixSummary: "Guard missing prices (the patch keeps touching an unrelated file across revisions).",
+    reproScenario: "checkout-missing-price",
+    triggeringInput: CHECKOUT_CRASH_CART,
+    inject: { file: "src/checkout.js", find: CHECKOUT_GOOD, replace: CHECKOUT_BAD },
+    fix: { file: "src/checkout.js", find: CHECKOUT_BAD, replace: CHECKOUT_GOOD },
+    sloppyFix: {
+      file: "server.js",
+      find: "const port = Number(process.env.PORT) || 3100;",
+      replace:
+        "const port = Number(process.env.PORT) || 3100; // TODO: unrelated drive-by change",
+    },
+    stubbornSloppy: true,
   },
 ];
 

@@ -8,8 +8,8 @@ Claude Code) with no engineer; the people who *can't read the diff*. Safety
 comes from **verification, not code review**: verification checks + cheap
 reversibility + a human consent gate, not from a human vetting the patch.
 
-> H0 hackathon (Track 2). Primary data store: **Amazon Aurora PostgreSQL
-> (Serverless v2)** + pgvector. Front end: **Next.js on Vercel**.
+> Primary data store: **Amazon Aurora PostgreSQL (Serverless v2)** + pgvector.
+> Front end: **Next.js on Vercel**.
 
 ---
 
@@ -73,9 +73,9 @@ npm run dev # http://localhost:3000/dashboard
 npm run worker # (optional) background job worker; or use /api/orchestrator/tick
 ```
 
-Open `/dashboard`, click **Trigger a demo incident**, watch the pipeline run
-live, then open the incident → **Approve & ship**. The founder's phone view is
-`/approve/<incidentId>`.
+Open `/dashboard`, click **simulate** → **fire a sample incident**, watch the
+pipeline run live, then open the incident → **Approve & ship**. The founder's
+phone view is `/approve/<incidentId>`.
 
 ## How it works (the 3 ideas)
 
@@ -109,7 +109,7 @@ lib/
  sim/bugs.ts seeded-bug catalog (real inject/fix code edits)
 migrations/ §9 schema (idempotent) + runtime tables
 sample-app/ zero-dependency "checkout" app Warden watches
-docs/ product · operations · business · hackathon · content (see docs/README.md)
+docs/ product · operations · business · content (see docs/README.md)
 scripts/ migrate · seed · worker · demo
 test/ state machine · workspace · orchestrator · policy · §13 e2e
 ```
@@ -127,12 +127,12 @@ criteria as one executable spec (detect → … → resolved, the no-ship-withou
 approval invariant, disagreement→escalate, prod-regression→rollback, dedup, and
 pgvector repeat-detection).
 
-## Going live / hackathon submission
+## Going live
 
 The repo is built and tested in simulation mode and is **Aurora/Vercel-ready**.
 The remaining steps are inherently human/account-gated (provision Aurora, deploy
-to Vercel + grab the Team ID, connect Sentry, add API keys, storage-config
-screenshot). They're all in **[docs/operations/go-live.md](docs/operations/go-live.md)**.
+to Vercel, connect Sentry, add API keys). They're all in
+**[docs/operations/go-live.md](docs/operations/go-live.md)**.
 
 Full doc index: **[docs/README.md](docs/README.md)**.
 

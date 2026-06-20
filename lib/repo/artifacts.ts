@@ -78,6 +78,15 @@ export async function setFixAttemptStatus(
   await query("UPDATE fix_attempts SET status = $2 WHERE id = $1", [id, status]);
 }
 
+/** How many fix attempts an incident has had (the fix-iterate loop's bound). */
+export async function countFixAttempts(incidentId: string): Promise<number> {
+  const r = await queryOne<{ n: number }>(
+    "SELECT count(*)::int AS n FROM fix_attempts WHERE incident_id = $1",
+    [incidentId],
+  );
+  return r?.n ?? 0;
+}
+
 // ── reviews ──────────────────────────────────────────────────────────────--
 /**
  * Idempotent: at most one review per (fix_attempt, reviewer). Returns the

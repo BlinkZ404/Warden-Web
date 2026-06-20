@@ -12,7 +12,7 @@
  *  - Agents have NO deploy authority. The only thing that moves an incident out
  *    of awaiting_approval is a human-written `approvals` row (see lib/approval).
  */
-import type { Incident } from "@/lib/db/types";
+import type { Incident, Review } from "@/lib/db/types";
 import { getIncident, setEmbedding, findSimilar } from "@/lib/repo/incidents";
 import { listEvents } from "@/lib/repo/events";
 import {
@@ -20,6 +20,7 @@ import {
   createInvestigation,
   latestFixAttempt,
   createFixAttempt,
+  countFixAttempts,
   listReviews,
   createReview,
   latestVerification,
@@ -39,7 +40,7 @@ import { config } from "@/lib/config";
 import { getInvestigator } from "@/lib/agents/investigator";
 import { getFixer } from "@/lib/agents/fixer";
 import { getReviewers } from "@/lib/agents/reviewer";
-import type { SentryContext } from "@/lib/agents/types";
+import type { SentryContext, FixRevision, ReviewFindings } from "@/lib/agents/types";
 import {
   prepareWorkspace,
   workspaceExists,
@@ -64,12 +65,37 @@ import {
   currentProdDeployment,
 } from "@/lib/adapters/deploy";
 import { consensusOf, verificationGate, policyGate, deployParityOk } from "@/lib/policy/gate";
-import { scopePolicy } from "@/lib/runtime-config";
+import { scopePolicy, approvalsRequired } from "@/lib/runtime-config";
 import { extractReproDescriptor } from "@/lib/agents/repro";
+import { synthesizeRegressionBattery } from "@/lib/agents/smoke";
 import { notifyApprovalNeeded } from "@/lib/notify";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 
 const MIN_CONFIDENCE = 0.5; // §5.8: when uncertain, escalate; don't guess.
+
+// The fix-iterate loop's bound: how many times the Fixer may re-propose after a
+// reviewer rejection before the incident escalates to a human (1 initial + 2
+// revisions). Keeps the loop from churning or burning cost indefinitely.
+const MAX_FIX_ATTEMPTS = 3;
+
+/**
+ * The reviewer panel's objection, but only if it is one the Fixer can ACT on.
+ * Today that is an over-scoped patch (it touched files unrelated to the error):
+ * feeding those notes back yields a tighter re-proposal. A non-scope objection
+ * (wrong file, a fundamental doubt) is not auto-actionable, so the caller
+ * escalates rather than looping on something the Fixer can't address.
+ */
+function actionableFeedback(reviews: Review[]): { actionable: boolean; notes: string[] } {
+  const notes = new Set<string>();
+  let overScoped = false;
+  for (const r of reviews) {
+    if (r.verdict === "approve") continue;
+    const f = r.findings as ReviewFindings | null;
+    if (f?.unrelatedFiles?.length) overScoped = true;
+    for (const n of f?.notes ?? []) notes.add(n);
+  }
+  return { actionable: overScoped, notes: [...notes] };
+}
 
 /** Reconstruct error context from the ingest event (works in live + sim). */
 async function sentryContextFor(incident: Incident): Promise<SentryContext> {
@@ -210,17 +236,26 @@ async function stepInvestigating(incident: Incident) {
 
 async function stepFixProposed(incident: Incident) {
   let fa = await latestFixAttempt(incident.id);
-  if (!fa) {
+  // A revision is needed when the latest attempt was already reviewed and
+  // rejected (we looped back from under_review to tighten the fix). Once the new
+  // attempt is created it has no reviews, so re-running this step is idempotent.
+  const priorReviews = fa ? await listReviews(fa.id) : [];
+  const revising = fa != null && priorReviews.some((r) => r.verdict !== "approve");
+  if (!fa || revising) {
     const inv = await latestInvestigation(incident.id);
     if (!inv) throw new Error("fix step: investigation missing");
-    await ensureMainWorkspace(incident); // rebuild if a reclaimed job lost the disk
     const fixer = getFixer();
     const root = workspacePath(incident.id);
-    const proposal = await fixer.propose({
-      incident,
-      investigation: inv,
-      workspaceRoot: root,
-    });
+    let revision: FixRevision | undefined;
+    if (revising) {
+      // Reset to production state so the re-proposal starts clean (drops whatever
+      // the reviewer objected to), then re-propose with the feedback.
+      await prepareWorkspace(incident.id, getBugByFingerprint(incident.fingerprint));
+      revision = { attempt: priorReviews.length, notes: actionableFeedback(priorReviews).notes };
+    } else {
+      await ensureMainWorkspace(incident); // rebuild if a reclaimed job lost the disk
+    }
+    const proposal = await fixer.propose({ incident, investigation: inv, workspaceRoot: root, revision });
     // Persist the patch so the workspace can be rebuilt from DB state later.
     const diff = await diffText(root, "main", proposal.branch);
     fa = await createFixAttempt({
@@ -238,6 +273,7 @@ async function stepFixProposed(incident: Incident) {
       commit: proposal.commitSha,
       files: proposal.filesChanged,
       summary: proposal.diffSummary,
+      ...(revision ? { revisionOf: revision.attempt } : {}),
     });
   }
   await transition(incident.id, "under_review", "claude");
@@ -310,7 +346,7 @@ async function stepUnderReview(incident: Incident) {
   const reviews = await listReviews(fa.id);
   const consensus = consensusOf(
     reviews.map((r) => ({ name: r.reviewer_agent, verdict: r.verdict })),
-    config.review.approvalsRequired,
+    approvalsRequired(),
   );
   await logEvent(incident.id, "consensus", "system", {
     proceed: consensus.proceed,
@@ -320,7 +356,28 @@ async function stepUnderReview(incident: Incident) {
     reason: consensus.reason,
   });
   if (consensus.escalate) {
-    await transition(incident.id, "escalated", "system", { reason: consensus.reason });
+    // Iterate before escalating: if the objection is something the Fixer can act
+    // on (an over-scoped patch) and we haven't spent our attempts, send the
+    // feedback back for a tighter fix instead of handing it to a human. The
+    // deterministic verification gate still runs after; this only addresses the
+    // reviewer filter, it never ships on agreement.
+    const attempts = await countFixAttempts(incident.id);
+    const fb = actionableFeedback(reviews);
+    if (fb.actionable && attempts < MAX_FIX_ATTEMPTS) {
+      await logEvent(incident.id, "revision", "system", {
+        attempt: attempts,
+        reason: "reviewer flagged an over-scoped fix; re-proposing with the feedback",
+        notes: fb.notes,
+      });
+      await transition(incident.id, "fix_proposed", "claude", { revision: attempts });
+      return;
+    }
+    await transition(incident.id, "escalated", "system", {
+      reason:
+        attempts >= MAX_FIX_ATTEMPTS
+          ? `${consensus.reason}; escalated after ${attempts} attempts`
+          : consensus.reason,
+    });
     return;
   }
   await transition(incident.id, "verifying", "system");
@@ -352,7 +409,7 @@ async function stepVerifying(incident: Incident) {
     const tests = await runTests(root);
     const testsCollected = tests.testsRun ?? 0;
     // `node --test` exits 0 even with ZERO test files; never treat that as a pass.
-    const testPassed = tests.code === 0 && testsCollected > 0;
+    const suitePassed = tests.code === 0 && testsCollected > 0;
 
     // Reproduce the original error against the fixed tree. Prefer the generic
     // descriptor carried on the investigation (the live seam: culprit export +
@@ -386,7 +443,19 @@ async function stepVerifying(incident: Incident) {
       return;
     }
 
+    // A real suite is the gold signal. For a test-less repo (the vibe-coded
+    // majority) we synthesize it from the event: if the captured production-failing
+    // request stopped throwing, that reproduction stands in for the absent suite.
+    const verifiedViaRepro = reproChecked && !errorRecurred;
+    const synthesized = !suitePassed && testsCollected === 0 && verifiedViaRepro;
+    const testPassed = suitePassed || synthesized;
+
+    // No-new-errors battery. Seeded incidents carry known-good inputs; a real
+    // test-less incident gets a baseline-checked battery synthesized from the
+    // captured request (an input only counts as a regression if it throws on the
+    // fix but ran clean on the pre-fix tree).
     let newErrors: string[] = [];
+    let smokeMode: "seeded" | "synthesized" | "none" = "none";
     const smokeDescriptor =
       descriptor ??
       (bug?.repro
@@ -394,6 +463,11 @@ async function stepVerifying(incident: Incident) {
         : null);
     if (smokeDescriptor && bug?.smokeInputs?.length) {
       newErrors = await smokeNewErrors(root, smokeDescriptor, bug.smokeInputs);
+      smokeMode = "seeded";
+    } else if (synthesized && descriptor) {
+      const battery = await synthesizeRegressionBattery(root, descriptor, "main", fa.branch!);
+      newErrors = battery.newErrors;
+      smokeMode = battery.inputs > 0 ? "synthesized" : "none";
     }
 
     v = await createVerification({
@@ -407,6 +481,8 @@ async function stepVerifying(incident: Incident) {
       preview_url: preview.previewUrl,
       test_passed: testPassed,
       tests_collected: testsCollected,
+      verified_via: suitePassed ? "suite" : synthesized ? "synthesized-repro" : "none",
+      smoke_mode: smokeMode,
       error_recurred: errorRecurred,
       repro_checked: reproChecked,
       new_errors: newErrors.length,

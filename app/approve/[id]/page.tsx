@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import type { IncidentBundle } from "@/lib/view";
 import { statusMeta } from "@/lib/ui";
+import { classifyReversibility } from "@/lib/policy/reversibility";
 import { EnableNotifications } from "@/app/_components/push";
 
 /**
@@ -60,6 +61,9 @@ export default function Approve() {
  const { incident, fixAttempt, verification, deployment } = bundle;
  const awaiting = incident.status === "awaiting_approval";
  const meta = statusMeta(incident.status);
+ const rev = fixAttempt
+ ? classifyReversibility((fixAttempt.files_changed as string[] | null) ?? [])
+ : null;
 
  return (
  <main className="mx-auto flex min-h-screen max-w-md flex-col gap-5 px-5 py-8">
@@ -91,6 +95,29 @@ export default function Approve() {
  <Row ok={!!verification.test_passed} label="All tests pass" />
  <Row ok={!verification.error_recurred} label="The error is gone" />
  <Row ok={!((verification.new_errors as unknown[] | null)?.length)} label="No new errors detected" />
+ </div>
+ )}
+
+ {rev && (
+ <div
+ className="rounded-2xl border p-4"
+ style={{
+ borderColor: rev.reversible
+ ? "color-mix(in srgb, var(--color-ok) 40%, var(--color-line))"
+ : "color-mix(in srgb, var(--color-warn) 45%, var(--color-line))",
+ background: rev.reversible
+ ? "color-mix(in srgb, var(--color-ok) 8%, var(--color-panel))"
+ : "color-mix(in srgb, var(--color-warn) 9%, var(--color-panel))",
+ }}
+ >
+ <p
+ className="text-sm font-medium"
+ style={{ color: rev.reversible ? "var(--color-ok)" : "var(--color-warn)" }}
+ >
+ {rev.reversible ? "↺ " : "! "}
+ {rev.label}
+ </p>
+ <p className="mt-1 text-xs leading-relaxed text-[var(--color-muted)]">{rev.detail}</p>
  </div>
  )}
 

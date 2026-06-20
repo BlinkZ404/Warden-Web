@@ -47,7 +47,7 @@ function SecLabel({ children }: { children: ReactNode }) {
  );
 }
 
-const KNOWN = ["metrics", "audit", "keys", "settings", "usage"];
+const KNOWN = ["metrics", "audit", "security", "keys", "settings", "usage"];
 
 function BrandMark() {
  return (
@@ -82,6 +82,9 @@ function SidebarContent() {
  </NavItem>
  <NavItem href="/dashboard/audit" icon="log" active={is("audit")}>
  Audit log
+ </NavItem>
+ <NavItem href="/dashboard/security" icon="shieldCheck" active={is("security")}>
+ Security
  </NavItem>
 
  <SecLabel>Configure</SecLabel>

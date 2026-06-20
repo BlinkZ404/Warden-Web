@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "description": "The on-call engineer you don't have. Catches production errors, fixes them, verifies the fix, and waits for one-tap human approval before anything ships.",
+  "author": "Arifur Rahman Akash",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BlinkZ404/Warden-Web.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -18,6 +24,7 @@
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
     "worker": "tsx scripts/worker.ts",
+    "worker:watch": "tsx watch scripts/worker.ts",
     "demo": "tsx scripts/demo.ts",
     "setup": "npm run db:up && npm run migrate && npm run seed"
   },

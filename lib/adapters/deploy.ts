@@ -83,6 +83,17 @@ export async function currentProdDeployment(): Promise<string | null> {
   return d?.uid ?? d?.id ?? null;
 }
 
+/** The deployment's own URL (the exact tree now serving production after promote). */
+async function deploymentUrl(deploymentId: string): Promise<string | null> {
+  const res = await fetch(
+    `https://api.vercel.com/v13/deployments/${deploymentId}${config.vercel.teamId ? `?teamId=${config.vercel.teamId}` : ""}`,
+    { headers: { authorization: `Bearer ${config.vercel.token}` } },
+  );
+  if (!res.ok) return null;
+  const json = (await res.json()) as { url?: string };
+  return json.url ? `https://${json.url}` : null;
+}
+
 export async function promoteToProd(deploymentId: string): Promise<Promotion> {
   if (live.deploy()) {
     const res = await fetch(
@@ -90,6 +101,10 @@ export async function promoteToProd(deploymentId: string): Promise<Promotion> {
       { method: "POST", headers: { authorization: `Bearer ${config.vercel.token}` } },
     );
     if (!res.ok) await httpError("vercel promote", res);
+    // Report the REAL promoted deployment URL, not a placeholder. Fall back to the
+    // project's default domain only if the lookup fails (the promote still landed).
+    const url = await deploymentUrl(deploymentId);
+    return { prodUrl: url ?? `https://${config.vercel.projectId}.vercel.app`, promotedAt: new Date() };
   }
   return { prodUrl: "https://checkout-service.vercel.app", promotedAt: new Date() };
 }

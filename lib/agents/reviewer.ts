@@ -1,5 +1,6 @@
 import { config } from "@/lib/config";
 import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
+import { isLiveRuntime, assignedReviewers, setting } from "@/lib/runtime-config";
 import {
   diffStat,
   diffText,
@@ -155,6 +156,14 @@ function makeLiveReviewer(provider: CompatProvider, name: string): Reviewer {
   };
 }
 
+/** Panel size: dashboard overlay (REVIEW_PANEL_SIZE) if set, else env config. */
+function resolvedPanelSize(): number {
+  const raw = setting("REVIEW_PANEL_SIZE");
+  if (!raw) return config.review.panelSize;
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? config.review.panelSize : Math.max(1, Math.min(3, n));
+}
+
 /**
  * The reviewer PANEL (PLAN §5.4): 1–3 independent reviewers. Diverse model
  * families decorrelate the signal. Selection:
@@ -163,7 +172,16 @@ function makeLiveReviewer(provider: CompatProvider, name: string): Reviewer {
  *   - the deterministic sim reviewer (replicated for the panel UI in sim).
  */
 export function getReviewers(): Reviewer[] {
-  if (config.isLive) {
+  if (config.isLive || isLiveRuntime()) {
+    // Dashboard-assigned reviewer panel (DB overlay: REVIEWER_1/2/3_MODEL +
+    // provider keys) takes precedence over env-configured slots.
+    const assigned = assignedReviewers();
+    if (assigned.length > 0) {
+      return assigned.map((p, i) =>
+        makeLiveReviewer(p, assigned.length > 1 ? `${p.model} #${i + 1}` : p.model),
+      );
+    }
+
     // Warn (don't silently drop) a slot that's set but incomplete; otherwise a
     // typo'd key shrinks the panel below the operator's intent with no signal.
     const partial = config.agents.reviewers
@@ -194,12 +212,13 @@ export function getReviewers(): Reviewer[] {
     }
     if (isConfigured(reviewerProvider())) {
       const def = reviewerProvider();
-      return Array.from({ length: config.review.panelSize }, (_, i) =>
-        makeLiveReviewer(def, config.review.panelSize > 1 ? `${def.model} #${i + 1}` : def.model),
+      const n = resolvedPanelSize();
+      return Array.from({ length: n }, (_, i) =>
+        makeLiveReviewer(def, n > 1 ? `${def.model} #${i + 1}` : def.model),
       );
     }
   }
-  const n = config.review.panelSize;
+  const n = resolvedPanelSize();
   return Array.from({ length: n }, (_, i) =>
     simReviewer(n > 1 ? `reviewer-${i + 1}` : "codex"),
   );

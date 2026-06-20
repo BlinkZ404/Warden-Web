@@ -26,17 +26,37 @@ export interface NormalizedError {
   raw: Record<string, unknown>;
 }
 
-/** Verify the `sentry-hook-signature` header (HMAC-SHA256 of the raw body). */
+function hmacHex(secret: string, body: string): string {
+  return createHmac("sha256", secret).update(body, "utf8").digest("hex");
+}
+
+function digestMatches(expectedHex: string, signature: string): boolean {
+  const a = Buffer.from(expectedHex);
+  const b = Buffer.from(signature);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Verify the `sentry-hook-signature` header. Sentry's documented verifier signs
+ * `JSON.stringify(request.body)` (the parsed body, re-serialized) rather than the
+ * raw transmitted bytes, so we canonicalize the body the same way before HMAC.
+ * We also accept a match against the raw bytes, so a payload that happens to be
+ * signed over the exact wire body still verifies; both forms require the secret,
+ * so accepting either does not weaken the check.
+ */
 export function verifySignature(
   rawBody: string,
   signature: string | null,
   secret: string,
 ): boolean {
   if (!secret || !signature) return false;
-  const expected = createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
-  const a = Buffer.from(expected);
-  const b = Buffer.from(signature);
-  return a.length === b.length && timingSafeEqual(a, b);
+  const candidates = [rawBody];
+  try {
+    candidates.push(JSON.stringify(JSON.parse(rawBody)));
+  } catch {
+    /* non-JSON body: only the raw form is meaningful */
+  }
+  return candidates.some((body) => digestMatches(hmacHex(secret, body), signature));
 }
 
 interface StackFrame {
@@ -52,7 +72,9 @@ interface SentryIssuePayload {
       title?: string;
       culprit?: string;
       level?: string;
-      project?: string;
+      // Sentry sends `project` as an object on real issue webhooks ({id,name,
+      // slug,platform}); synthetic sim payloads send a bare string. Accept both.
+      project?: string | { slug?: string; name?: string };
       fingerprint?: string[];
       metadata?: { type?: string; value?: string };
       firstSeen?: string;
@@ -89,6 +111,13 @@ function pickTriggeringRequest(event?: { request?: { data?: unknown } }): unknow
   return req;
 }
 
+/** Resolve the human-readable service name from Sentry's string-or-object `project`. */
+function projectName(project?: string | { slug?: string; name?: string }): string {
+  if (!project) return "unknown";
+  if (typeof project === "string") return project;
+  return project.slug ?? project.name ?? "unknown";
+}
+
 /** Map a Sentry issue webhook payload to our canonical error shape. */
 export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedError {
   const issue = payload.data?.issue ?? {};
@@ -96,11 +125,12 @@ export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedE
   const event = payload.data?.event;
   const frames = event?.exception?.values?.[0]?.stacktrace?.frames;
   const frame = pickCulpritFrame(frames);
+  const service = projectName(issue.project);
 
   const fingerprint =
     payload._fingerprint ??
     issue.fingerprint?.[0] ??
-    `${issue.project ?? "unknown"}/${issue.culprit ?? "unknown"}/${meta.type ?? "Error"}`;
+    `${service}/${issue.culprit ?? "unknown"}/${meta.type ?? "Error"}`;
 
   const culpritFile =
     payload._culpritFile ?? frame?.filename ?? issue.culprit ?? undefined;
@@ -113,7 +143,7 @@ export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedE
     externalId: issue.id ?? fingerprint,
     fingerprint,
     title: issue.title ?? `${meta.type ?? "Error"}: ${meta.value ?? ""}`.trim(),
-    service: issue.project ?? "unknown",
+    service,
     severity: issue.level ?? "error",
     errorType: meta.type ?? "Error",
     errorMessage: meta.value ?? issue.title ?? "",

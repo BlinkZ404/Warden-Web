@@ -2,7 +2,7 @@
 
 *The autonomous on-call engineer for founders who can't read code.*
 
-Grounded in the repo ([plan.md](../product/plan.md), [README.md](../../README.md), [audit.md](../product/audit.md), [architecture.md](../product/architecture.md), [go-live.md](../operations/go-live.md)) and the 2026 competitive landscape. Today: 2026-05-30. Deliberately lean and bootstrapped: roughly a month of runway focuses the work on closing the core loop, not gold-plating it. The AWS+Vercel "H0" hackathon (due Jun 29, 5pm PDT) is a launch ramp, not the goal.
+Grounded in the repo ([plan.md](../product/plan.md), [README.md](../../README.md), [architecture.md](../product/architecture.md), [go-live.md](../operations/go-live.md)) and the 2026 competitive landscape. Deliberately lean and bootstrapped: roughly a month of runway focuses the work on closing the core loop, not gold-plating it.
 
 ---
 
@@ -145,9 +145,9 @@ Per-incident, on paid DeepSeek ($0.14/$0.28 per M tokens, *not* the promo/cache 
 
 ---
 
-## 6. The 1-month plan (May 30 → Jun 29)
+## 6. The 1-month execution plan
 
-**The codebase is past most people's *finished* hackathon projects** (M0–M12, 79 tests green, panel reviewer, one-tap revert, audit trail, pgvector memory, scorecard, cheap-provider support). The verify-not-review loop is built and verified end-to-end in simulation; **the entire remaining job is crossing sim→live on ONE real case and packaging it. Do not re-build M0–M12.** The single riskiest thing is that the loop has not yet run against live credentials, and three load-bearing legs are written and fail-closed, pending live credentials to validate them.
+**The core product is built and deep** (M0–M12, 102 tests green, panel reviewer, one-tap revert, audit trail, pgvector memory, scorecard, cheap-provider support). The verify-not-review loop is built and verified end-to-end in simulation; **the remaining job is crossing sim to live on real cases and packaging it.** The single riskiest item is that the loop has not yet run against live credentials, and three load-bearing legs are written and fail-closed, pending live credentials to validate them.
 
 | Week | Focus | Concrete deliverables | Success gate |
 |---|---|---|---|
@@ -216,4 +216,4 @@ Per-incident, on paid DeepSeek ($0.14/$0.28 per M tokens, *not* the promo/cache 
 
 ---
 
-*Synthesized from a 6-agent research workflow (live 2026 market research + repo-grounded analysis). Companion to [plan.md](../product/plan.md) (the build spec) and [go-live.md](../operations/go-live.md) (the deploy checklist).*
+*Companion to [plan.md](../product/plan.md) (the build spec) and [go-live.md](../operations/go-live.md) (the deploy checklist).*

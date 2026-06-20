@@ -54,10 +54,21 @@ export interface Investigator {
   investigate(incident: Incident, sentry: SentryContext): Promise<InvestigationResult>;
 }
 
+/** Feedback for a re-proposal after a reviewer rejected the prior attempt. */
+export interface FixRevision {
+  /** How many attempts have already been rejected (0 on the first try). */
+  attempt: number;
+  /** The reviewer's actionable notes for the Fixer to address. */
+  notes: string[];
+}
+
 export interface FixerContext {
   incident: Incident;
   investigation: Investigation;
   workspaceRoot: string;
+  /** Set when re-proposing after review; the Fixer should tighten scope and
+   * address `revision.notes` rather than repeating the rejected patch. */
+  revision?: FixRevision;
 }
 
 export interface Fixer {

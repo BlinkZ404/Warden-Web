@@ -24,8 +24,12 @@ it's configuration.
  (the migration does this too, but the master role needs the privilege).
 4. Set `DATABASE_URL` to the Aurora endpoint:
  `postgres://USER:PASS@your-cluster.cluster-xxxx.us-east-1.rds.amazonaws.com:5432/warden`
- (TLS is auto-enabled for non-localhost hosts; for strict verification, attach
- the RDS CA bundle and set `PGSSLMODE=verify-full`).
+ TLS is enabled automatically for non-localhost hosts and verified against the
+ vendored Amazon RDS CA bundle (`certs/rds-global-bundle.pem`) - Aurora's cert is
+ signed by the Amazon RDS CA, which is not in Node's default trust store, so this
+ bundle is what makes the connection succeed out of the box. To pin your own CA,
+ set `PGSSLMODE=verify-full` + `PGSSLROOTCERT=<path>`; to skip verification
+ (encrypt only), set `PGSSL_INSECURE=1`.
 5. Apply the schema: `DATABASE_URL=... npm run migrate`.
 
 📸 **Storage-config screenshot** (submission requirement): capture the RDS
@@ -38,11 +42,15 @@ console page showing the Aurora **Serverless v2** cluster.
  `WARDEN_MODE=live`, and the keys from the sections below.
 3. Deploy. Note the **production URL** and your **Vercel Team ID**
  (Team Settings → General); both are submission requirements.
-4. Drive the orchestrator on a schedule; add to `vercel.json`:
- ```json
- { "crons": [{ "path": "/api/orchestrator/tick", "schedule": "* * * * *" }] }
- ```
- (or run `npm run worker` on any always-on host).
+4. The repo ships `vercel.json` with a once-per-day cron that GETs
+ `/api/orchestrator/tick` - a recovery sweep for retried/backed-off jobs.
+ **Daily is the Hobby-plan maximum** (a more frequent expression fails the
+ deploy); on **Pro**, tighten it (e.g. `*/5 * * * *`). Set a `CRON_SECRET` env
+ var and the tick requires it (Vercel Cron sends it automatically as a Bearer
+ token). The happy path does **not** depend on the cron - the webhook and
+ approve routes drain the pipeline inline - so for prompt background
+ advancement of the autonomous loop, run `npm run worker` on any always-on host.
+ That worker is the real driver; the Vercel cron is just a safety net.
 5. For the **deploy/rollback adapter**, create a Vercel **token** and set
  `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID`. Secrets live only in
  the deploy adapter; they are never exposed to the agents (PLAN §5.6).
@@ -83,15 +91,21 @@ instead of sent.
 
 ## 6. Flip the switch
 
-Set `WARDEN_MODE=live`. Any capability whose secret is missing **degrades
-gracefully back to simulation** for that capability only, so a partially
-configured environment still runs end to end.
+Set `WARDEN_MODE=live`. You can set the mode and the provider keys / model
+assignments **either** as Vercel environment variables **or** through the
+dashboard (Settings + API keys) - both reach the agents. Any capability whose
+secret is missing **degrades gracefully back to simulation** for that capability
+only, so a partially configured environment still runs end to end.
+
+> **Set `WARDEN_API_SECRET` before going live.** approve / rollback / tick /
+> oauth-disconnect fail **closed** in live mode when no secret is configured
+> (they return 503), so production mutations are never world-writable.
 
 ---
 
 ## Known live-mode gaps (finish before relying on `live`)
 
-A hardening audit (see [audit.md](../product/audit.md)) confirmed the **simulation path is
+A thorough hardening audit confirmed the **simulation path is
 sound**: these are live-only items that are made **fail-closed** (they escalate
 to a human rather than do the wrong thing) but need *your* accounts to fully
 wire and test. Until then, live incidents that hit them will safely escalate.
@@ -116,15 +130,21 @@ wire and test. Until then, live incidents that hit them will safely escalate.
 5. **Production health watch.** `verifyProdHealth` fails closed in live (escalates
  for manual confirmation). Implement the real post-deploy error-rate comparison
  to enable autonomous resolve / auto-rollback.
-6. **Auth.** approve / rollback / tick accept an optional `WARDEN_API_SECRET`
- (set it!). Full multi-tenant auth, deriving the approver identity from an
- authenticated session instead of the request body, is still PLAN §11 work.
-7. **Live agent adapters are written and fail-closed, pending live credentials
+6. **Auth.** approve / rollback / tick / oauth-disconnect now fail **closed** in
+ live when no secret is configured (they 503). Set `WARDEN_API_SECRET` (and/or
+ `CRON_SECRET` for the Vercel cron) before going live. Full multi-tenant auth -
+ deriving the approver identity from an authenticated session instead of the
+ request body - is still PLAN §11 work.
+7. **Customer-repo clone.** Live currently runs against the bundled `./sample-app`
+ (`TARGET_REPO_PATH`); cloning an arbitrary customer GitHub repo on demand (and
+ generating a reproduction harness inside it) is not built yet. Demo and live
+ testing today target a connected sample repo, not an arbitrary founder repo.
+8. **Live agent adapters are written and fail-closed, pending live credentials
  to validate them** (no keys wired here yet): confirm Claude's patch
  application (it now refuses truncated output and parses defensively) and the
  Reviewer's JSON against your real target repo before relying on them.
 
-## Hackathon submission checklist (PLAN §4)
+## Submission deliverables checklist
 
 - [ ] Text description that **names the database** (Amazon Aurora PostgreSQL Serverless v2).
 - [ ] ~3-min demo video (follow PLAN §14 / `npm run demo` narration).
@@ -135,5 +155,5 @@ wire and test. Until then, live incidents that hit them will safely escalate.
 ## Cost watch (PLAN §16)
 
 Watch AWS spend (Cost Explorer; Aurora Serverless v2 bills per-ACU-hour; set a
-low max ACU and an auto-pause if available) and agent/token usage. The hackathon
+low max ACU and an auto-pause if available) and agent/token usage. The provided
 credits are sized for typical dev usage only.

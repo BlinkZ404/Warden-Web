@@ -23,6 +23,7 @@ import { Icon } from "@/app/_components/icons";
 import { ReproTheater } from "@/app/_components/repro-theater";
 import { AuditTable } from "@/app/_components/audit-table";
 import { reproPair, fixCostUsd, blastRadius, memoryMatches } from "@/lib/incident-derive";
+import { classifyReversibility } from "@/lib/policy/reversibility";
 import { usd } from "@/lib/pricing";
 
 export default function IncidentDetail() {
@@ -76,6 +77,7 @@ export default function IncidentDetail() {
  const approvals = reviews.filter((r) => r.verdict === "approve").length;
  const awaiting = incident.status === "awaiting_approval";
  const blast = blastRadius(fixAttempt, verification);
+ const rev = classifyReversibility(blast.files);
  const cost = fixCostUsd(events);
  const memory = memoryMatches(events);
 
@@ -293,6 +295,9 @@ export default function IncidentDetail() {
  : `${blast.regressions} new error${blast.regressions === 1 ? "" : "s"}`}
  </Chip>
  <Chip>cost {usd(cost)}</Chip>
+ <Chip tone={rev.reversible ? "var(--color-ok)" : "var(--color-warn)"}>
+ {rev.reversible ? "↺ reversible" : "⚠ not fully reversible"}
+ </Chip>
  </div>
  <div className="mt-4 flex gap-3">
  <Button onClick={() => decide("approve")} disabled={busy} size="lg">

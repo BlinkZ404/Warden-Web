@@ -2,10 +2,11 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { config } from "@/lib/config";
 import { extractJson, anthropicText } from "@/lib/agents/json";
-import { chatJson, isConfigured } from "@/lib/agents/openai-compat";
+import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 import { createBranch, applyEdit, commitAll } from "@/lib/adapters/workspace";
+import { isLiveRuntime, assignedProvider } from "@/lib/runtime-config";
 import type { Fixer, FixerContext, FixProposal } from "@/lib/agents/types";
 
 function branchName(incidentId: string): string {
@@ -55,14 +56,23 @@ const simFixer: Fixer = {
     const filesChanged = [bug.culpritFile];
 
     // A deliberately over-scoped patch (only on the "risky" scenario) so the
-    // Reviewer has something real to object to.
-    if (bug.sloppyFix) {
+    // Reviewer has something real to object to. On a revision we DROP it and ship
+    // the tightly-scoped fix, modelling the Fixer acting on the review feedback —
+    // unless the scenario is "stubborn" (it keeps over-scoping, so the loop
+    // exhausts its attempts and escalates).
+    const tightened = !!bug.sloppyFix && !!ctx.revision && !bug.stubbornSloppy;
+    if (bug.sloppyFix && !tightened) {
       await applyEdit(workspaceRoot, bug.sloppyFix);
       filesChanged.push(bug.sloppyFix.file);
     }
 
+    // Only claim "tightened" when the patch ACTUALLY dropped the over-scoped edit;
+    // a stubborn revision keeps server.js, so its summary must not say otherwise.
+    const summary = tightened
+      ? `${bug.fixSummary} (tightened to only the implicated file after review)`
+      : bug.fixSummary;
     const commitSha = await commitAll(workspaceRoot, `fix: ${bug.title}`);
-    return { branch, commitSha, diffSummary: bug.fixSummary, filesChanged };
+    return { branch, commitSha, diffSummary: summary, filesChanged };
   },
 };
 
@@ -70,23 +80,29 @@ const FIX_PROMPT =
   'You fix a file so a production error stops. Respond ONLY with a JSON object {"newContent": string (the FULL corrected file contents), "summary": string (one plain-English sentence for a non-technical founder)}.';
 
 function fixUser(ctx: FixerContext, file: string, original: string): string {
-  return `Root cause: ${ctx.investigation.root_cause}\n\nFile ${file}:\n\`\`\`\n${original}\n\`\`\``;
+  const feedback = ctx.revision?.notes?.length
+    ? `\n\nA previous attempt was rejected by review. Address this and keep the patch tightly scoped to ONLY ${file}:\n- ${ctx.revision.notes.join("\n- ")}`
+    : "";
+  return `Root cause: ${ctx.investigation.root_cause}${feedback}\n\nFile ${file}:\n\`\`\`\n${original}\n\`\`\``;
 }
 
-/** Any OpenAI-compatible provider (DeepSeek, GLM, OpenAI, …) configured via env. */
-const compatFixer: Fixer = {
-  name: "agent",
-  async propose(ctx: FixerContext): Promise<FixProposal> {
-    const { file, path } = culprit(ctx);
-    const original = await readFile(path, "utf8");
-    const parsed = await chatJson<{ newContent: string; summary: string }>(
-      config.agents.fixer,
-      FIX_PROMPT,
-      fixUser(ctx, file, original),
-    );
-    return commitRewrite(ctx, file, path, parsed.newContent, parsed.summary);
-  },
-};
+/** Any OpenAI-compatible provider (DeepSeek, GLM, OpenAI, …); the provider is
+ * resolved from the dashboard assignment or env config by the factory below. */
+function makeCompatFixer(provider: CompatProvider): Fixer {
+  return {
+    name: "agent",
+    async propose(ctx: FixerContext): Promise<FixProposal> {
+      const { file, path } = culprit(ctx);
+      const original = await readFile(path, "utf8");
+      const parsed = await chatJson<{ newContent: string; summary: string }>(
+        provider,
+        FIX_PROMPT,
+        fixUser(ctx, file, original),
+      );
+      return commitRewrite(ctx, file, path, parsed.newContent, parsed.summary);
+    },
+  };
+}
 
 /** Native Anthropic Messages API. (Untested without keys.) */
 const liveFixer: Fixer = {
@@ -116,7 +132,13 @@ const liveFixer: Fixer = {
 };
 
 export function getFixer(): Fixer {
-  if (config.isLive && isConfigured(config.agents.fixer)) return compatFixer;
-  if (config.isLive && config.agents.anthropicApiKey) return liveFixer;
+  // Live if the env (config.isLive) OR the dashboard overlay (isLiveRuntime) says
+  // so. Provider precedence: dashboard assignment → env OpenAI-compatible config
+  // → native Anthropic → simulation.
+  if (!(config.isLive || isLiveRuntime())) return simFixer;
+  const assigned = assignedProvider("FIXER_MODEL");
+  if (assigned) return makeCompatFixer(assigned);
+  if (isConfigured(config.agents.fixer)) return makeCompatFixer(config.agents.fixer);
+  if (config.agents.anthropicApiKey) return liveFixer;
   return simFixer;
 }

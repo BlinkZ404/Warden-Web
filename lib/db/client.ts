@@ -7,6 +7,7 @@
  * we keep the SQL visible.
  */
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import pg from "pg";
 import { config } from "@/lib/config";
 
@@ -28,13 +29,33 @@ function isLocalHost(url: string): boolean {
 }
 
 /**
+ * The vendored Amazon RDS global CA bundle, loaded once. Aurora's server
+ * certificate is signed by the Amazon RDS private CA, which is NOT in Node's
+ * default (Mozilla) trust store, so verifying against system CAs would fail with
+ * "unable to verify the first certificate". Shipping the public RDS bundle lets
+ * the default remote path verify the chain instead of failing to connect.
+ */
+let rdsCa: string | null | undefined;
+function bundledRdsCa(): string | null {
+  if (rdsCa === undefined) {
+    try {
+      rdsCa = readFileSync(resolve(process.cwd(), "certs", "rds-global-bundle.pem"), "utf8");
+    } catch {
+      rdsCa = null; // bundle missing → fall back to encrypt-but-don't-verify
+    }
+  }
+  return rdsCa;
+}
+
+/**
  * TLS config for the pool. Secure by default for remote hosts (Aurora):
  *   - PGSSL=disable                  → no TLS (local only)
  *   - localhost/127.0.0.1/::1        → no TLS (local dev)
  *   - PGSSLMODE=verify-ca|verify-full + PGSSLROOTCERT → verify against that CA
- *     (the RDS CA bundle); without PGSSLROOTCERT, verify against system CAs
+ *     (an operator-supplied RDS CA bundle)
  *   - PGSSL_INSECURE=1               → explicit opt-out (encrypt, don't verify)
- *   - otherwise (remote)             → verify against system CAs (rejectUnauthorized:true)
+ *   - otherwise (remote)             → verify against the vendored RDS CA bundle
+ *     (or encrypt-but-don't-verify if that bundle is somehow absent)
  */
 function resolveSsl(url: string): pg.PoolConfig["ssl"] {
   if (process.env.PGSSL === "disable" || isLocalHost(url)) return undefined;
@@ -44,7 +65,8 @@ function resolveSsl(url: string): pg.PoolConfig["ssl"] {
     return { rejectUnauthorized: true, ca: readFileSync(caPath, "utf8") };
   }
   if (process.env.PGSSL_INSECURE === "1") return { rejectUnauthorized: false };
-  return { rejectUnauthorized: true };
+  const ca = bundledRdsCa();
+  return ca ? { rejectUnauthorized: true, ca } : { rejectUnauthorized: false };
 }
 
 export function getPool(): pg.Pool {

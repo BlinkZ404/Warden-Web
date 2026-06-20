@@ -1,9 +1,10 @@
 import { readOnlyQuery } from "@/lib/db/client";
 import { config } from "@/lib/config";
 import { extractJson, anthropicText } from "@/lib/agents/json";
-import { chatJson, isConfigured } from "@/lib/agents/openai-compat";
+import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
+import { isLiveRuntime, assignedProvider } from "@/lib/runtime-config";
 import type { Incident } from "@/lib/db/types";
 import type { Investigator, InvestigationResult, SentryContext } from "@/lib/agents/types";
 
@@ -79,19 +80,18 @@ function toResult(
   };
 }
 
-/** Any OpenAI-compatible provider (DeepSeek, GLM, OpenAI, …) configured via env. */
-const compatInvestigator: Investigator = {
-  name: "agent",
-  async investigate(incident, sentry): Promise<InvestigationResult> {
-    const ctx = await readOnlyContext(incident);
-    const parsed = await chatJson<InvJson>(
-      investigatorProvider(),
-      INV_SYSTEM,
-      invUser(incident, sentry),
-    );
-    return toResult(parsed, ctx, sentry);
-  },
-};
+/** Any OpenAI-compatible provider (DeepSeek, GLM, OpenAI, …); the provider is
+ * resolved from the dashboard assignment or env config by the factory below. */
+function makeCompatInvestigator(provider: CompatProvider): Investigator {
+  return {
+    name: "agent",
+    async investigate(incident, sentry): Promise<InvestigationResult> {
+      const ctx = await readOnlyContext(incident);
+      const parsed = await chatJson<InvJson>(provider, INV_SYSTEM, invUser(incident, sentry));
+      return toResult(parsed, ctx, sentry);
+    },
+  };
+}
 
 /** Native Anthropic Messages API. (Untested without keys.) */
 const liveInvestigator: Investigator = {
@@ -118,7 +118,10 @@ const liveInvestigator: Investigator = {
 };
 
 export function getInvestigator(): Investigator {
-  if (config.isLive && isConfigured(investigatorProvider())) return compatInvestigator;
-  if (config.isLive && config.agents.anthropicApiKey) return liveInvestigator;
+  if (!(config.isLive || isLiveRuntime())) return simInvestigator;
+  const assigned = assignedProvider("INVESTIGATOR_MODEL");
+  if (assigned) return makeCompatInvestigator(assigned);
+  if (isConfigured(investigatorProvider())) return makeCompatInvestigator(investigatorProvider());
+  if (config.agents.anthropicApiKey) return liveInvestigator;
   return simInvestigator;
 }

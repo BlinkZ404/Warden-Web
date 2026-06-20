@@ -26,13 +26,14 @@ npm-debug.log*
 # misc
 .DS_Store
 *.pem
+!certs/rds-global-bundle.pem
 .vercel
 .idea
 .vscode/*
 !.vscode/extensions.json
 tsconfig.tsbuildinfo
 
-# local AI / IDE tooling (never commit)
+# editor and local tool directories
 .antigravitycli
 .antigravitycli/
 .claude
@@ -41,3 +42,8 @@ tsconfig.tsbuildinfo
 .cursor/
 .grok
 .grok/
+
+# Hackathon strategy + working docs (kept locally in _private, never published)
+_private/
+/docs/hackathon/
+/docs/strategy/

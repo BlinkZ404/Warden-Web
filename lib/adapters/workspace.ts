@@ -149,6 +149,14 @@ export async function revParse(root: string, ref: string): Promise<string> {
   return git(root, ["rev-parse", ref]);
 }
 
+/**
+ * Check out a ref in the workspace. Used by the synthesized smoke battery to
+ * baseline an input on the pre-fix tree, then restore the verified fix tree.
+ */
+export async function checkoutRef(root: string, ref: string): Promise<void> {
+  await git(root, ["checkout", ref]);
+}
+
 // ── analysis primitives for the Reviewer ─────────────────────────────────────
 export interface DiffStat {
   files: string[];
@@ -305,6 +313,18 @@ export async function reproduceCall(
 }
 
 /**
+ * The throw signature from a reproduce run: null if it ran clean, otherwise the
+ * thrown constructor name (e.g. "TypeError"), parsed from the `THREW <Name>` line
+ * `scripts/reproduce.js` prints. The single owner of that contract, shared by the
+ * seeded battery here and the synthesized one (`lib/agents/smoke.ts`).
+ */
+export function throwSignature(r: RunResult): string | null {
+  if (r.code === 0) return null;
+  const m = r.stderr.match(/THREW\s+(\w+)/);
+  return m ? m[1] : "Error";
+}
+
+/**
  * Regression smoke battery (AUDIT H4): replay known-good inputs on the fixed
  * tree. Returns distinct error signatures introduced by the fix (empty = clean).
  */
@@ -316,11 +336,8 @@ export async function smokeNewErrors(
   const seen = new Set<string>();
   for (const req of smokeRequests) {
     const args = Array.isArray(req) ? req : [req];
-    const r = await reproduceCall(root, { ...descriptor, args });
-    if (r.code !== 0) {
-      const m = r.stderr.match(/THREW\s+(\w+)/);
-      seen.add(m ? m[1] : "Error");
-    }
+    const sig = throwSignature(await reproduceCall(root, { ...descriptor, args }));
+    if (sig) seen.add(sig);
   }
   return [...seen];
 }

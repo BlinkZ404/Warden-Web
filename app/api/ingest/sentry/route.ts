@@ -12,6 +12,10 @@ import { hydrateSettings, isLiveRuntime, sentryClientSecret } from "@/lib/runtim
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// In live mode this drains the pipeline inline (LLM + git + tests); give it the
+// full function budget. For heavy live workloads, prefer returning 202 and
+// draining via the worker/cron (see docs/operations/go-live.md).
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
  const raw = await req.text();
@@ -31,6 +35,15 @@ export async function POST(req: Request) {
  if (!verifySignature(raw, sig, secret)) {
  return Response.json({ error: "invalid signature" }, { status: 401 });
  }
+ }
+
+ // Sentry fires installation / event_alert / metric_alert / comment / seer
+ // webhooks alongside issue/error. Only issue/error carry a triagable production
+ // error; ack everything else cleanly so the install handshake and alert pings
+ // don't get force-fed through the issue normalizer into junk incidents.
+ const resource = req.headers.get("sentry-hook-resource");
+ if (resource && resource !== "issue" && resource !== "error") {
+ return Response.json({ ok: true, ignored: resource }, { status: 200 });
  }
 
  let payload: unknown;

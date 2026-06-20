@@ -7,7 +7,6 @@ All project docs live under `docs/`. The repo root keeps only [README.md](../REA
 | Doc | Description |
 |-----|-------------|
 | [product/plan.md](product/plan.md) | Build spec: milestones, non-negotiables, acceptance criteria |
-| [product/audit.md](product/audit.md) | Hardening audit: gaps closed, known live-mode limits |
 | [product/architecture.md](product/architecture.md) | As-built architecture (mermaid diagrams) |
 
 ## Operations

@@ -2,7 +2,7 @@
 
 I keep meeting the same founder. They shipped an app with v0 or Cursor or Claude Code, it has real users, and they cannot read a single line of the code that runs their company. When something breaks at 2am, they have three bad options: a monitoring tool that tells them it's broken but won't fix it, a coding agent that opens a pull request *they can't review*, or a cheap stranger on a freelance marketplace. Nothing actually closes the loop.
 
-So I built **Warden**: an autonomous on-call engineer for the founder who can't read the diff. A production error fires, it investigates, an AI writes a patch on a branch, a panel of independent reviewer agents cross-checks it, a verification gate runs the app's real tests and reproduces the original error on a preview, and then the founder gets a readable push notification: one tap to ship, one tap to revert. The whole thing runs end-to-end today in simulation mode, against a real Postgres, with 79 tests green.
+So I built **Warden**: an autonomous on-call engineer for the founder who can't read the diff. A production error fires, it investigates, an AI writes a patch on a branch, a panel of independent reviewer agents cross-checks it, a verification gate runs the app's real tests and reproduces the original error on a preview, and then the founder gets a readable push notification: one tap to ship, one tap to revert. The whole thing runs end-to-end today in simulation mode, against a real Postgres, with 102 tests green.
 
 ## The insight: verify, don't review
 

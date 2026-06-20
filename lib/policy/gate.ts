@@ -126,7 +126,40 @@ export interface ScopePolicy {
   denyGlobs: string[];
 }
 
-/** Match a repo-relative path against a simple glob (`*`, `**`, literal `?`). */
+/**
+ * Schema and data file classes. A code-only deploy revert cannot undo a change
+ * to one of these, so they are both (a) the heart of the deny-glob floor below
+ * and (b) the basis of the reversibility classifier (`lib/policy/reversibility.ts`
+ * re-exports this). One source of truth keeps the two in lockstep.
+ */
+export const DATA_SCHEMA_GLOBS: string[] = [
+  "**/migrations/**",
+  "**/*.sql",
+  "**/schema.*",
+  "**/prisma/**",
+  "**/seed.*",
+  "**/seeds/**",
+];
+
+/**
+ * The always-on protected-path floor (§10). The Fixer only ever rewrites the
+ * single culprit file, but that file is chosen from a real stack trace, so the
+ * culprit could itself be a migration, a schema, an auth module, or raw SQL.
+ * Autonomously rewriting any of those is the exact Lemkin-class failure (an
+ * agent editing data/auth it had no business touching), so these classes are
+ * never auto-patched: a fix that lands on one escalates to a human instead.
+ * Operator-configured globs extend this baseline; they never shrink it.
+ */
+export const DEFAULT_DENY_GLOBS: string[] = [
+  ...DATA_SCHEMA_GLOBS,
+  "**/auth/**",
+  "**/auth.*",
+  "**/.env*",
+  "**/secrets/**",
+];
+
+/** Match a repo-relative path against a simple glob (`*`, `**`, and a literal `?`
+ * / `.`; `.` is treated literally, not as a wildcard). */
 export function pathMatchesGlob(filePath: string, glob: string): boolean {
   const norm = filePath.replace(/\\/g, "/");
   const g = glob.replace(/\\/g, "/");
@@ -145,7 +178,7 @@ export function pathMatchesGlob(filePath: string, glob: string): boolean {
       re += "[^/]*";
     } else if (g[i] === "?") {
       re += "\\?";
-    } else if ("\\+^${}()|[]".includes(g[i])) {
+    } else if ("\\+^${}()|[].".includes(g[i])) {
       re += `\\${g[i]}`;
     } else {
       re += g[i];
@@ -167,7 +200,7 @@ export function policyGate(
   if (scope.churn > policy.maxChurn) reasons.push("diff is too large");
   for (const file of scope.files) {
     if (policy.denyGlobs.some((g) => pathMatchesGlob(file, g))) {
-      reasons.push(`protected path: ${file}`);
+      reasons.push(`protected path (Warden won't auto-edit data, auth, or schema): ${file}`);
       break;
     }
   }

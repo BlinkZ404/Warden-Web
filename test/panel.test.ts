@@ -104,7 +104,7 @@ describe("reviewer panel: multi-reviewer run", () => {
   });
 
   it("a dissenting panel escalates without reaching verification", async () => {
-    const { incidentId } = await fire("checkout-missing-price-risky");
+    const { incidentId } = await fire("checkout-stubborn-scope");
     await drainJobs();
     expect((await getIncident(incidentId))!.status).toBe("escalated");
 

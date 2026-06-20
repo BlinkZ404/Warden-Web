@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Driftwood — Checkout</title>
+<style>
+  :root {
+    --ink: #1a1c22;
+    --muted: #6b7180;
+    --line: #e7e9ef;
+    --brand: #5C6795;
+    --bad: #d2433a;
+    --ok: #1f9d6b;
+    --bg: #f5f6f9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px; border-bottom: 1px solid var(--line); background: #fff;
+  }
+  .logo { font-weight: 700; letter-spacing: -0.02em; font-size: 18px; }
+  .logo span { color: var(--brand); }
+  .badge { font-size: 12px; color: var(--muted); }
+  main { max-width: 880px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 1.4fr 1fr; gap: 28px; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  h1 { font-size: 22px; margin: 0 0 16px; letter-spacing: -0.01em; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+  .item { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .item:last-child { border-bottom: 0; }
+  .thumb { width: 46px; height: 46px; border-radius: 10px; background: linear-gradient(135deg, #d9def0, #c2c9e6); flex: none; }
+  .thumb.gift { background: linear-gradient(135deg, #ffe2c2, #ffc78a); }
+  .item .name { font-weight: 600; font-size: 14px; }
+  .item .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .item .price { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; }
+  .free { color: var(--ok); }
+  .summary div { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--muted); }
+  .summary .total { color: var(--ink); font-weight: 700; font-size: 18px; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 16px; }
+  button {
+    width: 100%; margin-top: 18px; padding: 14px 16px; border: 0; border-radius: 11px;
+    background: var(--brand); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: filter .15s ease;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:disabled { opacity: .65; cursor: progress; }
+  .note { font-size: 12px; color: var(--muted); text-align: center; margin-top: 12px; }
+  .crash {
+    margin-top: 18px; border: 1px solid #f3c6c2; background: #fdf1f0; border-radius: 11px;
+    padding: 16px; display: none;
+  }
+  .crash.show { display: block; }
+  .crash .head { display: flex; align-items: center; gap: 8px; color: var(--bad); font-weight: 700; font-size: 14px; }
+  .crash code { display: block; margin-top: 10px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; color: #7a221c; background: #fbe3e1; padding: 10px 12px; border-radius: 8px; white-space: pre-wrap; }
+  .ok-box { margin-top: 18px; border: 1px solid #bfe7d4; background: #f0faf5; border-radius: 11px; padding: 16px; display: none; color: var(--ok); font-weight: 600; font-size: 14px; }
+  .ok-box.show { display: block; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">drift<span>wood</span></div>
+    <div class="badge">Secure checkout</div>
+  </header>
+  <main>
+    <section>
+      <h1>Your bag</h1>
+      <div class="card" id="bag"></div>
+    </section>
+    <section>
+      <h1>Order summary</h1>
+      <div class="card">
+        <div class="summary">
+          <div><span>Subtotal</span><span id="sub">$68.00</span></div>
+          <div><span>Tax</span><span id="tax">$5.44</span></div>
+          <div><span>Shipping</span><span id="ship">$5.00</span></div>
+          <div class="total"><span>Total</span><span id="total">$78.44</span></div>
+        </div>
+        <button id="pay">Pay $78.44</button>
+        <div class="note">You won't be charged in this demo.</div>
+        <div class="crash" id="crash">
+          <div class="head">Checkout failed</div>
+          <code id="crashmsg"></code>
+        </div>
+        <div class="ok-box" id="okbox">Order placed. Thanks for shopping with Driftwood.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // The cart a real shopper would submit during a "Founders Day" promo: two
+    // priced items plus a free-gift line item that arrives with no price object.
+    // That last line is the one that crashes the founder's checkout in production.
+    const cart = {
+      taxRate: 0.08,
+      items: [
+        { sku: "DW-CHARGER", name: "Wireless charging pad", price: { amount: 4900 }, quantity: 1 },
+        { sku: "DW-CASE", name: "Recycled phone case", price: { amount: 1900 }, quantity: 1 },
+        { sku: "DW-GIFT", name: "Founders Day gift", quantity: 1 } // no price → boom
+      ]
+    };
+
+    const bag = document.getElementById("bag");
+    for (const it of cart.items) {
+      const priced = it.price && typeof it.price.amount === "number";
+      const row = document.createElement("div");
+      row.className = "item";
+      row.innerHTML =
+        '<div class="thumb ' + (priced ? "" : "gift") + '"></div>' +
+        '<div><div class="name">' + it.name + '</div>' +
+        '<div class="meta">Qty ' + it.quantity + (priced ? "" : " · gift with purchase") + '</div></div>' +
+        '<div class="price ' + (priced ? "" : "free") + '">' +
+        (priced ? "$" + (it.price.amount / 100).toFixed(2) : "Free") + '</div>';
+      bag.appendChild(row);
+    }
+
+    const pay = document.getElementById("pay");
+    pay.addEventListener("click", async () => {
+      pay.disabled = true;
+      pay.textContent = "Processing...";
+      document.getElementById("crash").classList.remove("show");
+      document.getElementById("okbox").classList.remove("show");
+      try {
+        const res = await fetch("/api/pay", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(cart)
+        });
+        if (res.ok) {
+          document.getElementById("okbox").classList.add("show");
+          pay.textContent = "Paid";
+        } else {
+          const data = await res.json().catch(() => ({}));
+          document.getElementById("crashmsg").textContent =
+            (data.error || "Internal Server Error") + "\n    at computeCheckoutTotal (src/checkout.js:14)";
+          document.getElementById("crash").classList.add("show");
+          pay.disabled = false;
+          pay.textContent = "Pay $78.44";
+        }
+      } catch (e) {
+        document.getElementById("crashmsg").textContent = String(e);
+        document.getElementById("crash").classList.add("show");
+        pay.disabled = false;
+        pay.textContent = "Pay $78.44";
+      }
+    });
+  </script>
+</body>
+</html>
