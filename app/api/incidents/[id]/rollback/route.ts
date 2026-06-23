@@ -3,7 +3,8 @@
  * Reuses the same Vercel instant-rollback adapter as the automatic path.
  */
 import { recordRevert, RevertStateError } from "@/lib/revert";
-import { checkApiSecret } from "@/lib/api-auth";
+import { checkApiSecret } from "@/lib/auth/api-auth";
+import { sessionActor } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,12 +12,17 @@ export const dynamic = "force-dynamic";
 export async function POST(
  req: Request,
  { params }: { params: Promise<{ id: string }> }) {
+ // Same gate as approve: a signed-in human is authenticated by their session,
+ // otherwise the shared-secret path covers scripted / operator calls.
+ const actor = await sessionActor();
+ if (!actor) {
  const denied = checkApiSecret(req);
  if (denied) return denied;
+ }
  const { id } = await params;
  const body = (await req.json().catch(() => ({}))) as { decidedBy?: string };
  try {
- const result = await recordRevert(id, body.decidedBy ?? "founder");
+ const result = await recordRevert(id, actor ?? body.decidedBy ?? "founder");
  return Response.json(result);
  } catch (e) {
  if (e instanceof RevertStateError) {

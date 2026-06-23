@@ -6,6 +6,7 @@ import type { IncidentBundle } from "@/lib/view";
 import { statusMeta } from "@/lib/ui";
 import { classifyReversibility } from "@/lib/policy/reversibility";
 import { EnableNotifications } from "@/app/_components/push";
+import { Wordmark } from "@/app/_components/wordmark";
 
 /**
  * Mobile-first approval screen (PLAN §8, §14). The founder can't vet code, so
@@ -60,6 +61,13 @@ export default function Approve() {
 
  const { incident, fixAttempt, verification, deployment } = bundle;
  const awaiting = incident.status === "awaiting_approval";
+ // A GitHub-delivered fix records its PR on the deploy event (no Warden prod_url).
+ const delivered = bundle.events.find(
+ (e) => e.type === "deploy" && (e.payload as { delivered?: boolean } | null)?.delivered,
+ );
+ const pr = delivered?.payload as
+ | { prUrl?: string; prNumber?: number; merged?: boolean }
+ | undefined;
  const meta = statusMeta(incident.status);
  const rev = fixAttempt
  ? classifyReversibility((fixAttempt.files_changed as string[] | null) ?? [])
@@ -68,9 +76,7 @@ export default function Approve() {
  return (
  <main className="mx-auto flex min-h-screen max-w-md flex-col gap-5 px-5 py-8">
  <div className="flex items-center justify-between">
- <p className="text-xs font-medium uppercase tracking-widest text-[var(--color-accent)]">
- Warden
- </p>
+ <Wordmark className="h-4 w-auto" />
  <EnableNotifications />
  </div>
 
@@ -148,6 +154,16 @@ export default function Approve() {
  </p>
  {incident.status === "resolved" && deployment?.prod_url && (
  <p className="mt-1 text-sm text-[var(--color-muted)]">Live at {deployment.prod_url}</p>
+ )}
+ {incident.status === "resolved" && pr?.prUrl && (
+ <a
+ href={pr.prUrl}
+ target="_blank"
+ rel="noreferrer"
+ className="mt-2 inline-block text-sm font-medium text-[var(--color-brand-2)] hover:underline"
+ >
+ {pr.merged ? `Merged as PR #${pr.prNumber}` : `View pull request #${pr.prNumber}`} →
+ </a>
  )}
  {incident.status === "resolved" && !deployment?.rolled_back && (
  <button

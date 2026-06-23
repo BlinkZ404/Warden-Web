@@ -1,8 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
+import { AUTH_ENABLED } from "@/lib/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
- title: "Warden",
+ title: {
+ default: "Warden",
+ template: "%s | Warden",
+ },
  description:
  "The on-call engineer you don't have. Catches production errors, fixes them, verifies the fix, and waits for your one-tap approval before anything ships.",
  manifest: "/manifest.webmanifest",
@@ -21,7 +26,7 @@ export default function RootLayout({
 }: {
  children: React.ReactNode;
 }) {
- return (
+ const tree = (
  <html lang="en">
  <head>
  <script
@@ -33,5 +38,14 @@ export default function RootLayout({
  </head>
  <body>{children}</body>
  </html>
+ );
+
+ // Only mount Clerk when it is configured, so the app still renders without keys.
+ return AUTH_ENABLED ? (
+ <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up" signInFallbackRedirectUrl="/dashboard">
+ {tree}
+ </ClerkProvider>
+ ) : (
+ tree
  );
 }

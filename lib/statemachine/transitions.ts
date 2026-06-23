@@ -19,7 +19,9 @@ export const TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
   // The human gate. Approve → approved; reject → dismissed.
   awaiting_approval: ["approved", "dismissed", "escalated"],
   approved: ["deploying", "failed", "escalated"],
-  deploying: ["verifying_prod", "failed", "rolled_back", "escalated"],
+  // verifying_prod is the Vercel-promote path; resolved is the GitHub-delivery
+  // handoff (PR/merge opened, the team's CI/CD ships it, Warden's job is done).
+  deploying: ["verifying_prod", "resolved", "failed", "rolled_back", "escalated"],
   verifying_prod: ["resolved", "rolled_back", "failed"],
   // After an automatic rollback the incident is contained but not fixed.
   rolled_back: ["escalated", "failed", "resolved"],

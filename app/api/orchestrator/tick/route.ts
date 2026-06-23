@@ -6,7 +6,7 @@
  * `Authorization: Bearer <CRON_SECRET>` header, which checkApiSecret accepts.
  */
 import { drainJobs } from "@/lib/orchestrator/runner";
-import { checkApiSecret } from "@/lib/api-auth";
+import { checkApiSecret } from "@/lib/auth/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

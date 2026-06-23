@@ -48,14 +48,16 @@ import {
   runTests,
   reproduce,
   reproduceCall,
+  reproduceRequest,
   smokeNewErrors,
   createBranch,
   applyPatch,
   commitAll,
   diffText,
   diffStat,
+  remoteDefaultBranch,
 } from "@/lib/adapters/workspace";
-import type { ReproDescriptor } from "@/lib/adapters/workspace";
+import type { ReproDescriptor, RequestSpec } from "@/lib/adapters/workspace";
 import type { FixAttempt } from "@/lib/db/types";
 import {
   deployPreview,
@@ -65,7 +67,16 @@ import {
   currentProdDeployment,
 } from "@/lib/adapters/deploy";
 import { consensusOf, verificationGate, policyGate, deployParityOk } from "@/lib/policy/gate";
-import { scopePolicy, approvalsRequired } from "@/lib/runtime-config";
+import {
+  scopePolicy,
+  approvalsRequired,
+  autoApprove,
+  bootConfig,
+  deliveryMode,
+} from "@/lib/runtime-config";
+import { deliverFix } from "@/lib/adapters/github-deliver";
+import { targetRepoUrl } from "@/lib/adapters/github-repo";
+import { recordApproval } from "@/lib/approval";
 import { extractReproDescriptor } from "@/lib/agents/repro";
 import { synthesizeRegressionBattery } from "@/lib/agents/smoke";
 import { notifyApprovalNeeded } from "@/lib/notify";
@@ -109,6 +120,7 @@ async function sentryContextFor(incident: Incident): Promise<SentryContext> {
     culpritFile: p.culpritFile as string | undefined,
     culpritFunction: p.culpritFunction as string | undefined,
     triggeringRequest: p.triggeringRequest,
+    httpRequest: p.httpRequest as { method: string; path: string; body?: unknown } | undefined,
     service: incident.service,
   };
 }
@@ -207,7 +219,11 @@ async function stepInvestigating(incident: Incident) {
       incident_id: incident.id,
       root_cause: result.rootCause,
       confidence: result.confidence,
-      context: repro ? { ...result.context, repro } : result.context,
+      context: {
+        ...result.context,
+        ...(repro ? { repro } : {}),
+        ...(sentry.httpRequest ? { httpRepro: sentry.httpRequest } : {}),
+      },
     });
     await logAgentAction(incident.id, investigator.name, "investigated", {
       rootCause: result.rootCause,
@@ -416,17 +432,38 @@ async function stepVerifying(incident: Incident) {
     // captured args) and fall back to the seeded catalog scenario. Either way
     // the signal is real: did the production-failing call stop throwing?
     const inv = await latestInvestigation(incident.id);
-    const descriptor = (inv?.context as { repro?: ReproDescriptor } | null)?.repro;
+    const invCtx = inv?.context as
+      | { repro?: ReproDescriptor; httpRepro?: RequestSpec }
+      | null;
+    const descriptor = invCtx?.repro;
+    const httpRepro = invCtx?.httpRepro;
     let errorRecurred = false;
     let reproChecked = false;
-    if (descriptor) {
+    let reproVia: "request" | "call" | "scenario" | "none" = "none";
+
+    // Prefer replaying the real failing HTTP request: it boots the app and hits
+    // the true entry point, so it reproduces DEEP crashes the function-call path
+    // (which assumes the culprit's args ARE the request) can't. Only trust it when
+    // the app actually booted (status != null); otherwise fall through so an
+    // un-bootable target never reads as a vacuous "verified".
+    if (httpRepro) {
+      const rr = await reproduceRequest(root, httpRepro, bootConfig());
+      if (rr.status != null) {
+        errorRecurred = rr.reproduced;
+        reproChecked = true;
+        reproVia = "request";
+      }
+    }
+    if (!reproChecked && descriptor) {
       const repro = await reproduceCall(root, descriptor);
       errorRecurred = repro.code !== 0;
       reproChecked = true;
-    } else if (bug) {
+      reproVia = "call";
+    } else if (!reproChecked && bug) {
       const repro = await reproduce(root, bug.reproScenario, bug.triggeringInput);
       errorRecurred = repro.code !== 0;
       reproChecked = true;
+      reproVia = "scenario";
     }
 
     // Fail closed (§5.8): if we could neither run any tests nor reproduce the
@@ -482,6 +519,7 @@ async function stepVerifying(incident: Incident) {
       test_passed: testPassed,
       tests_collected: testsCollected,
       verified_via: suitePassed ? "suite" : synthesized ? "synthesized-repro" : "none",
+      repro_via: reproVia,
       smoke_mode: smokeMode,
       error_recurred: errorRecurred,
       repro_checked: reproChecked,
@@ -513,7 +551,24 @@ async function stepVerifying(incident: Incident) {
   });
   await transition(incident.id, "awaiting_approval", "system");
 
-  // Ping the founder: readable summary + a one-tap approval link (§8).
+  // Autopilot: if the operator opted in, a fix that cleared verification ships
+  // without a human tap (recorded as a system actor for the audit log). The same
+  // drain cycle then carries on to deploy, so no resume job is enqueued. Scope/
+  // guardrail violations and reviewer disagreement escalated earlier and never
+  // reach here, so only verified, in-policy fixes auto-approve.
+  if (autoApprove()) {
+    await recordApproval({
+      incidentId: incident.id,
+      decision: "approve",
+      decidedBy: "auto-approve",
+      channel: "auto",
+      actor: "system:auto-approve",
+      enqueueResume: false,
+    });
+    return;
+  }
+
+  // Otherwise ping the founder: readable summary + a one-tap approval link (§8).
   await notifyApprovalNeeded({
     incidentId: incident.id,
     title: `Found a fix for the ${incident.service ?? "app"} crash`,
@@ -526,9 +581,70 @@ async function stepApproved(incident: Incident) {
   await transition(incident.id, "deploying", "system");
 }
 
+/** PR/issue body for a GitHub-delivered fix: what broke + how it was verified. */
+function deliveryBody(incident: Incident, rootCause?: string | null): string {
+  const lines = [
+    "## Warden — verified fix",
+    "",
+    `**Incident:** ${incident.title}`,
+    `**Service:** ${incident.service}`,
+  ];
+  if (rootCause) lines.push(`**Root cause:** ${rootCause}`);
+  lines.push(
+    "",
+    "Verified by Warden: the production error reproduces on the pre-fix code and no longer occurs after this change, with the test suite passing.",
+    "",
+    "_Opened automatically by Warden._",
+  );
+  return lines.join("\n");
+}
+
 async function stepDeploying(incident: Incident) {
   const fa = await latestFixAttempt(incident.id);
   if (!fa) throw new Error("deploy step: fix attempt missing");
+
+  // GitHub delivery: push the verified fix branch and open a PR (or merge) on the
+  // linked repo, then hand off to the team's CI/CD. Warden resolves once delivered
+  // rather than promoting its own deploy. Double-gated (mode + a linked repo), so
+  // the default Vercel path below is untouched.
+  const mode = deliveryMode();
+  if ((mode === "pr" || mode === "merge") && targetRepoUrl() && fa.branch) {
+    await ensureFixWorkspace(incident, fa);
+    const root = workspacePath(incident.id);
+    const base = await remoteDefaultBranch(root);
+    const inv = await latestInvestigation(incident.id);
+    const result = await deliverFix({
+      workspaceRoot: root,
+      branch: fa.branch,
+      base,
+      title: `Warden: fix ${incident.title}`,
+      body: deliveryBody(incident, inv?.root_cause),
+      merge: mode === "merge",
+    });
+    await logEvent(incident.id, "deploy", "system", {
+      delivered: true,
+      mode,
+      prUrl: result.prUrl,
+      prNumber: result.prNumber,
+      merged: result.merged,
+    });
+    await recordOutcome({
+      incident_id: incident.id,
+      resolved: true,
+      recurred: false,
+      resolution_type: "code",
+      notes: result.merged
+        ? `Verified fix merged as PR #${result.prNumber}; your CI/CD ships it.`
+        : `Verified fix opened as PR #${result.prNumber} for review.`,
+    });
+    await transition(incident.id, "resolved", "system", {
+      prUrl: result.prUrl,
+      prNumber: result.prNumber,
+      merged: result.merged,
+    });
+    return;
+  }
+
   const dep = await latestDeployment(fa.id);
 
   // Idempotent: if this deployment was already promoted (a crash-retry, or a

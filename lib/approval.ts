@@ -20,7 +20,14 @@ export interface ApprovalInput {
   incidentId: string;
   decision: "approve" | "reject";
   decidedBy: string; // user id (or 'demo-script' for the unattended demo)
-  channel?: string; // 'push' | 'web' | 'slack' | 'script'
+  channel?: string; // 'push' | 'web' | 'slack' | 'script' | 'auto'
+  // Event/transition actor; defaults to `human:<decidedBy>`. Autopilot passes
+  // `system:auto-approve` so the audit log shows who really decided.
+  actor?: string;
+  // Whether to enqueue a resume job after approving. The HTTP route needs this
+  // (it runs outside the orchestrator loop); an in-loop auto-approve sets false
+  // so the same drain cycle carries on to deploy without a redundant job.
+  enqueueResume?: boolean;
 }
 
 export class ApprovalStateError extends Error {}
@@ -36,26 +43,29 @@ export async function recordApproval(input: ApprovalInput) {
   const fa = await latestFixAttempt(incident.id);
   if (!fa) throw new ApprovalStateError("no fix attempt to approve");
 
+  const actor = input.actor ?? `human:${input.decidedBy}`;
+  const channel = input.channel ?? "web";
   const approval = await createApproval({
     incident_id: incident.id,
     fix_attempt_id: fa.id,
     decision: input.decision,
     decided_by: input.decidedBy,
-    channel: input.channel ?? "web",
+    channel,
   });
-  await logEvent(incident.id, "approval", `human:${input.decidedBy}`, {
+  await logEvent(incident.id, "approval", actor, {
     decision: input.decision,
-    channel: input.channel ?? "web",
+    channel,
     fixAttemptId: fa.id,
   });
 
   if (input.decision === "approve") {
     await bumpScorecard(fa.agent, "fixer", { human_approved: 1 });
-    await transition(incident.id, "approved", `human:${input.decidedBy}`);
-    await enqueue(incident.id); // resume: approved → deploying → verifying_prod → resolved
+    await transition(incident.id, "approved", actor);
+    // resume: approved → deploying → verifying_prod → resolved
+    if (input.enqueueResume !== false) await enqueue(incident.id);
   } else {
-    await transition(incident.id, "dismissed", `human:${input.decidedBy}`, {
-      reason: "human rejected the fix",
+    await transition(incident.id, "dismissed", actor, {
+      reason: "fix rejected",
     });
   }
 

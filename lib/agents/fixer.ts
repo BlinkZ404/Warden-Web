@@ -5,7 +5,7 @@ import { extractJson, anthropicText } from "@/lib/agents/json";
 import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
-import { createBranch, applyEdit, commitAll } from "@/lib/adapters/workspace";
+import { createBranch, applyEdit, commitAll, gatherCallerContext } from "@/lib/adapters/workspace";
 import { isLiveRuntime, assignedProvider } from "@/lib/runtime-config";
 import type { Fixer, FixerContext, FixProposal } from "@/lib/agents/types";
 
@@ -79,11 +79,12 @@ const simFixer: Fixer = {
 const FIX_PROMPT =
   'You fix a file so a production error stops. Respond ONLY with a JSON object {"newContent": string (the FULL corrected file contents), "summary": string (one plain-English sentence for a non-technical founder)}.';
 
-function fixUser(ctx: FixerContext, file: string, original: string): string {
+function fixUser(ctx: FixerContext, file: string, original: string, callers: string): string {
   const feedback = ctx.revision?.notes?.length
     ? `\n\nA previous attempt was rejected by review. Address this and keep the patch tightly scoped to ONLY ${file}:\n- ${ctx.revision.notes.join("\n- ")}`
     : "";
-  return `Root cause: ${ctx.investigation.root_cause}${feedback}\n\nFile ${file}:\n\`\`\`\n${original}\n\`\`\``;
+  const callerBlock = callers ? `\n\n${callers}` : "";
+  return `Root cause: ${ctx.investigation.root_cause}${feedback}\n\nFile ${file}:\n\`\`\`\n${original}\n\`\`\`${callerBlock}`;
 }
 
 /** Any OpenAI-compatible provider (DeepSeek, GLM, OpenAI, …); the provider is
@@ -94,10 +95,11 @@ function makeCompatFixer(provider: CompatProvider): Fixer {
     async propose(ctx: FixerContext): Promise<FixProposal> {
       const { file, path } = culprit(ctx);
       const original = await readFile(path, "utf8");
+      const callers = await gatherCallerContext(ctx.workspaceRoot, file);
       const parsed = await chatJson<{ newContent: string; summary: string }>(
         provider,
         FIX_PROMPT,
-        fixUser(ctx, file, original),
+        fixUser(ctx, file, original, callers),
       );
       return commitRewrite(ctx, file, path, parsed.newContent, parsed.summary);
     },
@@ -110,6 +112,7 @@ const liveFixer: Fixer = {
   async propose(ctx: FixerContext): Promise<FixProposal> {
     const { file, path } = culprit(ctx);
     const original = await readFile(path, "utf8");
+    const callers = await gatherCallerContext(ctx.workspaceRoot, file);
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -120,7 +123,9 @@ const liveFixer: Fixer = {
       body: JSON.stringify({
         model: config.agents.anthropicModel,
         max_tokens: 8192,
-        messages: [{ role: "user", content: `${FIX_PROMPT}\n\n${fixUser(ctx, file, original)}` }],
+        messages: [
+          { role: "user", content: `${FIX_PROMPT}\n\n${fixUser(ctx, file, original, callers)}` },
+        ],
       }),
     });
     if (!res.ok) await httpError("anthropic", res);

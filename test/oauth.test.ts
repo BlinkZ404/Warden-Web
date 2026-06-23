@@ -9,7 +9,7 @@ import {
  getOAuthProvider,
  hasStateSecret,
  OAUTH_PROVIDERS,
-} from "@/lib/oauth";
+} from "@/lib/auth/oauth";
 
 describe("oauth", () => {
  beforeEach(async () => {

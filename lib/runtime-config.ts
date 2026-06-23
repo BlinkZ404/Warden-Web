@@ -83,6 +83,50 @@ export function approvalsRequired(): number | null {
  return raw ? intIn(raw, 1, 1, 3) : null;
 }
 
+/**
+ * Autopilot: when on, a fix that passes the verification gate ships without
+ * waiting for a human tap. Guardrail/scope violations and reviewer disagreement
+ * still escalate earlier, so this only auto-approves fixes that already cleared
+ * verification; reversibility + auto-rollback remain the safety net.
+ */
+export function autoApprove(): boolean {
+ return setting("AUTO_APPROVE") === "true";
+}
+
+export type DeliveryMode = "preview" | "pr" | "merge";
+
+/**
+ * How an approved, verified fix is delivered:
+ *  - "preview": Warden promotes its own Vercel deploy (the original path).
+ *  - "pr":      Warden pushes the fix branch and opens a PR on the linked repo;
+ *               the team reviews/merges and their CI/CD deploys.
+ *  - "merge":   Warden merges the verified fix straight to the base branch so the
+ *               team's CI/CD ships it immediately ("fix ASAP").
+ * Defaults to "pr" once a GitHub repo is linked, else "preview".
+ */
+export function deliveryMode(): DeliveryMode {
+ const m = setting("DELIVERY_MODE");
+ if (m === "preview" || m === "pr" || m === "merge") return m;
+ return setting("TARGET_REPO_URL").trim() ? "pr" : "preview";
+}
+
+/**
+ * How to boot the linked app for request-replay reproduction (operator-set, so
+ * Warden can run an arbitrary repo). All optional: install defaults to npm
+ * ci/install, build is skipped when empty, and command falls back to the repo's
+ * package.json `start` then `node server.js`.
+ */
+export function bootConfig(): { command?: string; build?: string; install?: string } {
+ const command = setting("RUN_COMMAND");
+ const build = setting("BUILD_COMMAND");
+ const install = setting("INSTALL_COMMAND");
+ return {
+ ...(command ? { command } : {}),
+ ...(build ? { build } : {}),
+ ...(install ? { install } : {}),
+ };
+}
+
 export interface VercelConfig {
  token: string;
  projectId: string;

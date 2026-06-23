@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Warden — Architecture</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0b0d12;
+        color: #d4d9e3;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      .wrap {
+        padding: 40px 32px 24px;
+        text-align: center;
+      }
+      h1 {
+        font-size: 15px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #8e97ad;
+        font-weight: 600;
+        margin: 0 0 24px;
+      }
+      .mermaid {
+        background: #11141b;
+        border: 1px solid #232838;
+        border-radius: 12px;
+        padding: 28px;
+      }
+      .hint {
+        margin-top: 16px;
+        font-size: 12px;
+        color: #6b7280;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Warden — System Architecture</h1>
+      <pre class="mermaid">
+flowchart TB
+  U["Founder / operator&lt;br/&gt;&lt;small&gt;dashboard · one-tap approve&lt;/small&gt;"]
+
+  subgraph VERCEL["Vercel · Next.js App Router (Fluid Compute)"]
+    UI["Dashboard &amp; approve UI&lt;br/&gt;&lt;small&gt;incident feed · audit · settings&lt;/small&gt;"]
+    API["API routes&lt;br/&gt;&lt;small&gt;Sentry webhook · approve · cron tick&lt;/small&gt;"]
+  end
+
+  SENTRY["Sentry&lt;br/&gt;&lt;small&gt;error source · HMAC-verified webhook&lt;/small&gt;"]
+
+  subgraph ENGINE["Warden engine · Vercel Functions (Node)"]
+    ORCH["Orchestrator&lt;br/&gt;&lt;small&gt;incident state machine&lt;/small&gt;"]
+    AGENTS["Agents&lt;br/&gt;&lt;small&gt;investigate · fix · reviewer panel&lt;/small&gt;"]
+    WS["Per-incident git workspace&lt;br/&gt;&lt;small&gt;clone · branch · apply fix&lt;/small&gt;"]
+    GATE["Verification gate&lt;br/&gt;&lt;small&gt;boot app · replay request · run tests&lt;/small&gt;"]
+  end
+
+  MODELS["Model providers&lt;br/&gt;&lt;small&gt;Claude · OpenAI · … via AI Gateway&lt;/small&gt;"]
+  GH["GitHub repo&lt;br/&gt;&lt;small&gt;linked code · verified fix → PR / merge&lt;/small&gt;"]
+  CICD["Your CI/CD&lt;br/&gt;&lt;small&gt;deploys the merged fix&lt;/small&gt;"]
+
+  AURORA[("Amazon Aurora PostgreSQL Serverless v2&lt;br/&gt;&lt;small&gt;state machine · append-only audit ·&lt;br/&gt;pgvector memory · scorecard · settings&lt;/small&gt;")]
+
+  U --&gt; UI
+  UI --&gt; API
+  SENTRY --&gt;|webhook| API
+  API --&gt; ORCH
+  ORCH --&gt; AGENTS --&gt; MODELS
+  AGENTS --&gt; WS
+  ORCH --&gt; WS --&gt; GATE
+  GATE --&gt;|"verified fix: PR / merge"| GH --&gt; CICD
+  API &lt;--&gt; AURORA
+  ORCH &lt;--&gt; AURORA
+  GATE -.-&gt;|pgvector recall| AURORA
+      </pre>
+      <div class="hint">Screenshot this panel for the submission, or edit the source in architecture-diagram.md.</div>
+    </div>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "dark",
+        themeVariables: {
+          primaryColor: "#1b2030",
+          primaryBorderColor: "#5C6795",
+          primaryTextColor: "#d4d9e3",
+          lineColor: "#5C6795",
+          fontFamily: "ui-sans-serif, system-ui, sans-serif",
+        },
+      });
+    </script>
+  </body>
+</html>

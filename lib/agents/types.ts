@@ -13,6 +13,7 @@ export interface SentryContext {
   culpritFile?: string;
   culpritFunction?: string;
   triggeringRequest?: unknown;
+  httpRequest?: { method: string; path: string; body?: unknown };
   service?: string | null;
   raw?: Record<string, unknown>;
 }

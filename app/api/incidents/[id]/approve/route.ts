@@ -7,7 +7,8 @@
 import { recordApproval, ApprovalStateError } from "@/lib/approval";
 import { drainJobs } from "@/lib/orchestrator/runner";
 import { getIncident } from "@/lib/repo/incidents";
-import { checkApiSecret } from "@/lib/api-auth";
+import { checkApiSecret } from "@/lib/auth/api-auth";
+import { sessionActor } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +16,13 @@ export const dynamic = "force-dynamic";
 export async function POST(
  req: Request,
  { params }: { params: Promise<{ id: string }> }) {
+ // A signed-in human is authenticated by their Clerk session; otherwise fall
+ // back to the shared-secret gate (scripted / operator / cron calls).
+ const approver = await sessionActor();
+ if (!approver) {
  const denied = checkApiSecret(req);
  if (denied) return denied;
+ }
  const { id } = await params;
  const body = (await req.json().catch(() => ({}))) as {
  decision?: "approve" | "reject";
@@ -31,7 +37,7 @@ export async function POST(
  await recordApproval({
  incidentId: id,
  decision: body.decision,
- decidedBy: body.decidedBy ?? "founder",
+ decidedBy: approver ?? body.decidedBy ?? "founder",
  channel: body.channel ?? "web",
  });
  } catch (e) {

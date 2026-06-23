@@ -1,7 +1,7 @@
 /** Disconnect: clear the stored access token for a provider. */
-import { getOAuthProvider } from "@/lib/oauth";
+import { getOAuthProvider } from "@/lib/auth/oauth";
 import { setSettings } from "@/lib/repo/settings";
-import { checkApiSecret } from "@/lib/api-auth";
+import { checkApiSecret } from "@/lib/auth/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -4,6 +4,7 @@ import { ingestError } from "@/lib/ingest";
 import { normalizeSentryWebhook, syntheticSentryEvent } from "@/lib/adapters/sentry";
 import { drainJobs } from "@/lib/orchestrator/runner";
 import { recordApproval } from "@/lib/approval";
+import { setSettings } from "@/lib/repo/settings";
 import { getIncident } from "@/lib/repo/incidents";
 import { listEvents } from "@/lib/repo/events";
 import { getBugByKey } from "@/lib/sim/bugs";
@@ -86,6 +87,32 @@ describe("§13 acceptance: end to end (simulation mode)", () => {
     expect(events.some((e) => e.type === "verification")).toBe(true);
     expect(events.some((e) => e.type === "approval")).toBe(true);
     expect(events.some((e) => e.type === "deploy")).toBe(true);
+
+    await destroyWorkspace(incidentId);
+  });
+
+  it("autopilot: AUTO_APPROVE ships a verified fix with no human tap", async () => {
+    await setSettings({ AUTO_APPROVE: "true" });
+    const { incidentId } = await fire("checkout-missing-price");
+
+    // One drain carries it all the way: gate passes → autopilot approves in the
+    // same cycle → deploy → resolved, with no human action.
+    await drainJobs();
+    expect((await getIncident(incidentId))!.status).toBe("resolved");
+
+    // A REAL approvals row, decided by the system rather than a human.
+    const approval = await latestApproval(incidentId);
+    expect(approval!.decision).toBe("approve");
+    expect(approval!.decided_by).toBe("auto-approve");
+
+    // The audit log attributes the decision to the system actor, not a human.
+    const approvalEvent = (await listEvents(incidentId)).find((e) => e.type === "approval");
+    expect(approvalEvent!.actor).toBe("system:auto-approve");
+
+    // It still verified before shipping, and actually promoted to prod.
+    const fa = await latestFixAttempt(incidentId);
+    expect((await latestVerification(fa!.id))!.test_passed).toBe(true);
+    expect((await latestDeployment(fa!.id))!.promoted_at).not.toBeNull();
 
     await destroyWorkspace(incidentId);
   });

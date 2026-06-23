@@ -22,7 +22,6 @@ if (once) {
   await closePool();
 } else {
   console.log("[worker] polling for jobs every 2s (Ctrl-C to stop)…");
-  // eslint-disable-next-line no-constant-condition
   const interval = setInterval(() => {
     tick().catch((e) => console.error("[worker] tick error:", e));
   }, 2000);

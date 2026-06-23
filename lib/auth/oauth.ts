@@ -14,7 +14,7 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { setting } from "@/lib/runtime-config";
 import { safeEqual } from "@/lib/hmac";
-import { OAUTH_PROVIDERS, getOAuthProvider, type OAuthProvider } from "@/lib/oauth-providers";
+import { OAUTH_PROVIDERS, getOAuthProvider, type OAuthProvider } from "@/lib/auth/oauth-providers";
 
 export { OAUTH_PROVIDERS, getOAuthProvider };
 export type { OAuthProvider };

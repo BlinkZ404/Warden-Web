@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSettings, type UseSettings } from "@/app/_components/use-settings";
 import { Section, IntegrationRow, KeyField, Select, FIELD } from "@/app/_components/form";
 import { Label, PageHeader, PageBody, Banner, Button, Dot } from "@/app/_components/console";
 import { Brand } from "@/app/_components/brand";
-import { getOAuthProvider } from "@/lib/oauth-providers";
+import { getOAuthProvider } from "@/lib/auth/oauth-providers";
 import {
   MODEL_PROVIDERS as PROVIDERS,
   ROLE_SLOTS as ROLES,
@@ -82,9 +83,9 @@ export default function KeysPage() {
           </div>
           <p className="text-[11px] text-[var(--color-muted)]">
             Check your balance and top up on the{" "}
-            <a href="/dashboard/usage" className="text-[var(--color-brand-2)] hover:underline">
+            <Link href="/dashboard/usage" className="text-[var(--color-brand-2)] hover:underline">
               usage
-            </a>{" "}
+            </Link>{" "}
             page.
           </p>
         </Section>

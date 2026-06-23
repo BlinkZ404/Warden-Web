@@ -11,7 +11,7 @@ import {
  exchangeCode,
  oauthBase,
  callbackRedirectUri,
-} from "@/lib/oauth";
+} from "@/lib/auth/oauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

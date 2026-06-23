@@ -21,6 +21,8 @@ export interface NormalizedError {
   culpritFunction?: string;
   /** Captured request body / args that triggered the crash. */
   triggeringRequest?: unknown;
+  /** The full captured HTTP request, for booting the app and replaying it. */
+  httpRequest?: { method: string; path: string; body?: unknown };
   firstSeen: Date;
   lastSeen: Date;
   raw: Record<string, unknown>;
@@ -90,6 +92,7 @@ interface SentryIssuePayload {
   _culpritFile?: string;
   _culpritFunction?: string;
   _triggeringRequest?: unknown;
+  _httpRequest?: { method: string; path: string; body?: unknown };
 }
 
 function toDate(s?: string): Date {
@@ -109,6 +112,26 @@ function pickTriggeringRequest(event?: { request?: { data?: unknown } }): unknow
   if (!req) return undefined;
   if (req.data !== undefined && req.data !== null) return req.data;
   return req;
+}
+
+/**
+ * The full failing HTTP request (method + path + body), when Sentry captured it.
+ * This is what `reproduceRequest` boots the app and replays; a bare path is kept
+ * as-is, an absolute URL is reduced to its path + query.
+ */
+function pickHttpRequest(
+  event?: { request?: { method?: string; url?: string; data?: unknown } },
+): { method: string; path: string; body?: unknown } | undefined {
+  const req = event?.request;
+  if (!req?.method || !req?.url) return undefined;
+  let path = req.url;
+  try {
+    const u = new URL(req.url);
+    path = u.pathname + u.search;
+  } catch {
+    /* url is already a path */
+  }
+  return { method: req.method, path, body: req.data };
 }
 
 /** Resolve the human-readable service name from Sentry's string-or-object `project`. */
@@ -137,6 +160,7 @@ export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedE
   const culpritFunction = payload._culpritFunction ?? frame?.function ?? undefined;
   const triggeringRequest =
     payload._triggeringRequest ?? (event ? pickTriggeringRequest(event) : undefined);
+  const httpRequest = payload._httpRequest ?? (event ? pickHttpRequest(event) : undefined);
 
   return {
     source: "sentry",
@@ -150,6 +174,7 @@ export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedE
     culpritFile,
     culpritFunction,
     triggeringRequest,
+    httpRequest,
     firstSeen: toDate(issue.firstSeen),
     lastSeen: toDate(issue.lastSeen),
     raw: payload as Record<string, unknown>,

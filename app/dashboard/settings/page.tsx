@@ -1,11 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import { useSettings } from "@/app/_components/use-settings";
 import { Section, Row, Select, FIELD } from "@/app/_components/form";
-import { PageHeader, PageBody, Banner } from "@/app/_components/console";
+import { PageHeader, PageBody, Banner, Button } from "@/app/_components/console";
+
+type RepoStatus = { repo: string; branch: string; head: string; files: number };
 
 export default function SettingsPage() {
  const { text, set, save, saving, error } = useSettings();
+ const [pulling, setPulling] = useState(false);
+ const [repo, setRepo] = useState<RepoStatus | null>(null);
+ const [repoErr, setRepoErr] = useState<string | null>(null);
+
+ async function pullRepo() {
+ setPulling(true);
+ setRepoErr(null);
+ setRepo(null);
+ try {
+ await save("repo", ["TARGET_REPO_URL"]); // persist the URL, then clone it
+ const res = await fetch("/api/repo/pull", { method: "POST" });
+ const data = await res.json();
+ if (data.ok) setRepo(data);
+ else setRepoErr(data.error ?? "Pull failed.");
+ } catch {
+ setRepoErr("Pull failed. Check your connection and try again.");
+ } finally {
+ setPulling(false);
+ }
+ }
 
  return (
  <div>
@@ -27,6 +50,128 @@ export default function SettingsPage() {
  >
  <option value="simulation">simulation</option>
  <option value="live">live</option>
+ </Select>
+ </Row>
+ </Section>
+
+ <Section icon="code" title="Target repository" aside="link a GitHub repo">
+ <Row
+ label="GitHub repo"
+ hint="owner/name or a github.com URL. For a private repo, connect GitHub in API keys first. Leave blank to use the bundled sample app."
+ >
+ <input
+ type="text"
+ spellCheck={false}
+ placeholder="acme/checkout-service"
+ value={text("TARGET_REPO_URL")}
+ onChange={(e) => set("TARGET_REPO_URL", e.target.value)}
+ className={`${FIELD} w-72`}
+ />
+ </Row>
+ <div className="flex flex-wrap items-center gap-3 pt-1">
+ <Button variant="secondary" size="sm" onClick={pullRepo} disabled={pulling}>
+ {pulling ? "Pulling…" : "Save & pull"}
+ </Button>
+ {repo && (
+ <span className="font-mono text-[11px] text-[var(--color-ok)]">
+ ✓ {repo.repo} · {repo.branch}@{repo.head} · {repo.files} files
+ </span>
+ )}
+ {repoErr && (
+ <span className="font-mono text-[11px] text-[var(--color-bad)]">{repoErr}</span>
+ )}
+ </div>
+ </Section>
+
+ <Section
+ icon="code"
+ title="Build & run"
+ aside="how Warden boots your app to verify"
+ onSave={() => save("boot", ["INSTALL_COMMAND", "BUILD_COMMAND", "RUN_COMMAND"])}
+ busy={saving === "boot"}
+ >
+ <Row
+ label="Install"
+ hint="Run once before boot to install dependencies. Defaults to npm ci or npm install. Leave blank for a zero-dependency app."
+ >
+ <input
+ type="text"
+ spellCheck={false}
+ placeholder="npm ci"
+ value={text("INSTALL_COMMAND")}
+ onChange={(e) => set("INSTALL_COMMAND", e.target.value)}
+ className={`${FIELD} w-56`}
+ />
+ </Row>
+ <Row
+ label="Build"
+ hint="Build step before boot, e.g. next build. Leave blank if your app needs none."
+ >
+ <input
+ type="text"
+ spellCheck={false}
+ placeholder="next build"
+ value={text("BUILD_COMMAND")}
+ onChange={(e) => set("BUILD_COMMAND", e.target.value)}
+ className={`${FIELD} w-56`}
+ />
+ </Row>
+ <Row
+ label="Start"
+ hint="Command that starts your app. Defaults to package.json start, then node server.js. Warden provides PORT."
+ >
+ <input
+ type="text"
+ spellCheck={false}
+ placeholder="next start"
+ value={text("RUN_COMMAND")}
+ onChange={(e) => set("RUN_COMMAND", e.target.value)}
+ className={`${FIELD} w-56`}
+ />
+ </Row>
+ </Section>
+
+ <Section
+ icon="flag"
+ title="Delivery"
+ aside="how a verified fix ships"
+ onSave={() => save("delivery", ["DELIVERY_MODE"])}
+ busy={saving === "delivery"}
+ >
+ <Row
+ label="On approval"
+ hint="Preview: Warden promotes its own Vercel deploy. Open a PR: a pull request on your linked repo for review. Merge: the verified fix goes to your branch so your existing CI/CD ships it."
+ >
+ <Select
+ value={text("DELIVERY_MODE", text("TARGET_REPO_URL").trim() ? "pr" : "preview")}
+ onChange={(v) => set("DELIVERY_MODE", v)}
+ className="min-w-[220px]"
+ >
+ <option value="preview">Preview deploy (Vercel)</option>
+ <option value="pr">Open a PR</option>
+ <option value="merge">Merge &amp; let CI/CD ship</option>
+ </Select>
+ </Row>
+ </Section>
+
+ <Section
+ icon="deploy"
+ title="Autopilot"
+ aside="auto-approve verified fixes"
+ onSave={() => save("autopilot", ["AUTO_APPROVE"])}
+ busy={saving === "autopilot"}
+ >
+ <Row
+ label="Auto-approve"
+ hint="On: a fix that passes verification ships without waiting for your tap. Reversibility and auto-rollback are the safety net, and any guardrail hit or reviewer disagreement still escalates to you."
+ >
+ <Select
+ value={text("AUTO_APPROVE", "false")}
+ onChange={(v) => set("AUTO_APPROVE", v)}
+ className="min-w-[180px]"
+ >
+ <option value="false">off — you approve</option>
+ <option value="true">on — autopilot</option>
  </Select>
  </Row>
  </Section>

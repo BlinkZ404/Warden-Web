@@ -10,14 +10,15 @@ export default defineConfig({
   test: {
     environment: "node",
     // The pipeline does real git + Postgres work; give it room. Tests share a
-    // single database, so run every file strictly sequentially in ONE process;
+    // single database, so run every file strictly sequentially in ONE worker;
     // otherwise one file's resetDatabase() TRUNCATE can fire mid-pipeline in
-    // another and pull rows out from under it.
+    // another and pull rows out from under it. In Vitest 4, `fileParallelism:
+    // false` forces a single worker (maxWorkers → 1), replacing the old
+    // `poolOptions.forks.singleFork`.
     testTimeout: 120_000,
     hookTimeout: 120_000,
-    fileParallelism: false,
     pool: "forks",
-    poolOptions: { forks: { singleFork: true } },
+    fileParallelism: false,
     sequence: { concurrent: false },
     setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.test.ts"],

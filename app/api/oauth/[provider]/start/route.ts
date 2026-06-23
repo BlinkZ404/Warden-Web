@@ -12,7 +12,7 @@ import {
  oauthBase,
  callbackRedirectUri,
  hasStateSecret,
-} from "@/lib/oauth";
+} from "@/lib/auth/oauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

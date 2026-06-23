@@ -45,6 +45,7 @@ export async function ingestError(err: NormalizedError): Promise<IngestResult> {
       culpritFile: err.culpritFile,
       culpritFunction: err.culpritFunction,
       triggeringRequest: err.triggeringRequest,
+      httpRequest: err.httpRequest,
       externalId: err.externalId,
       severity: err.severity,
     });

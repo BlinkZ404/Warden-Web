@@ -48,9 +48,9 @@ export function extractReproDescriptor(sig: ReproSignal): ReproDescriptor | null
  if (!fn || !file) return null;
  if (sig.request === undefined || sig.request === null) return null;
 
- const module = normalizeModulePath(file);
- if (!module || !/\.[cm]?[jt]sx?$/.test(module)) return null; // must be a JS/TS module
+ const modulePath = normalizeModulePath(file);
+ if (!modulePath || !/\.[cm]?[jt]sx?$/.test(modulePath)) return null; // must be a JS/TS module
 
  const args = Array.isArray(sig.request) ? sig.request : [sig.request];
- return { module, export: fn, args };
+ return { module: modulePath, export: fn, args };
 }

@@ -7,7 +7,7 @@ import type { IncidentBundle } from "@/lib/view";
 import { StatusBadge, VerdictPill } from "@/app/_components/ui";
 import { Frame, Grid, Cell, Field, Label, StatTiles, Loading, Empty } from "@/app/_components/console";
 import { Brand } from "@/app/_components/brand";
-import { Icon } from "@/app/_components/icons";
+import { Wordmark } from "@/app/_components/wordmark";
 import { ReproTheater } from "@/app/_components/repro-theater";
 import { reproPair, fixCostUsd, blastRadius } from "@/lib/incident-derive";
 import { usd } from "@/lib/pricing";
@@ -54,10 +54,7 @@ export default function ReportPage() {
  <div className="mx-auto max-w-3xl px-6 py-10">
  <div className="flex items-center justify-between border-b border-[var(--color-line)] pb-4">
  <Link href="/" className="flex items-center gap-2.5">
- <span className="grid h-6 w-6 place-items-center rounded-md border border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-line))] text-[var(--color-brand-2)]">
- <Icon name="shield" size={13} />
- </span>
- <span className="text-sm font-semibold tracking-[0.16em]">WARDEN</span>
+ <Wordmark className="h-4 w-auto" />
  <span className="font-mono text-[11px] text-[var(--color-muted)]">incident fix report</span>
  </Link>
  <StatusBadge status={incident.status} />

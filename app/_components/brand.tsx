@@ -28,6 +28,9 @@ export function actorLabel(actor: string): string {
  const n = actor.slice(6);
  return n ? n.charAt(0).toUpperCase() + n.slice(1) : "Human";
  }
+ if (actor.startsWith("system:")) {
+ return actor.slice(7) === "auto-approve" ? "Autopilot" : "System";
+ }
  const b = BRANDS[actor.toLowerCase()];
  if (b) return b.label;
  return actor.charAt(0).toUpperCase() + actor.slice(1);

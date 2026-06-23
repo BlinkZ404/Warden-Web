@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Icon } from "@/app/_components/icons";
 import { ThemeToggle } from "@/app/_components/theme-toggle";
+import { Wordmark } from "@/app/_components/wordmark";
 
 function NavItem({
  href,
@@ -51,11 +52,8 @@ const KNOWN = ["metrics", "audit", "security", "keys", "settings", "usage"];
 
 function BrandMark() {
  return (
- <Link href="/" className="flex items-center gap-2.5 border-b border-[var(--color-line)] px-5 py-4">
- <span className="grid h-6 w-6 place-items-center rounded-md border border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-line))] text-[var(--color-brand-2)]">
- <Icon name="shield" size={13} />
- </span>
- <span className="text-sm font-semibold tracking-[0.16em] text-[var(--color-text)]">WARDEN</span>
+ <Link href="/" className="flex items-center border-b border-[var(--color-line)] px-5 py-4">
+ <Wordmark className="h-4 w-auto" />
  </Link>
  );
 }
@@ -143,12 +141,7 @@ export function MobileNav() {
  </svg>
  </button>
  <Link href="/" className="flex items-center gap-2">
- <span className="grid h-5 w-5 place-items-center rounded border border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-line))] text-[var(--color-brand-2)]">
- <Icon name="shield" size={11} />
- </span>
- <span className="text-sm font-semibold tracking-[0.16em] text-[var(--color-text)]">
- WARDEN
- </span>
+ <Wordmark className="h-4 w-auto" />
  </Link>
  </div>
 

@@ -7,6 +7,8 @@
  --color-line: #232834;
  --color-muted: #8b93a7;
  --color-text: #e7eaf0;
+ /* readable body color for long-form prose (brighter than muted) */
+ --color-doc: #d4d9e3;
  --color-accent: #5c6795;
  --color-ok: #3fb950;
  --color-warn: #d29922;
@@ -26,6 +28,7 @@
  --color-line: #e3e4e9;
  --color-muted: #6b7280;
  --color-text: #1a1c22;
+ --color-doc: #353841;
  --color-accent: #5c6795;
  --color-brand: #5c6795;
  --color-brand-2: #51598a;
@@ -61,44 +64,10 @@ body {
  a zero-JS server component. Honors prefers-reduced-motion.
  ─────────────────────────────────────────────────────────────────────────── */
 
-/* floating debris: a frozen explosion of code fragments that slowly drifts */
-@keyframes wd-float {
- 0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--r, 0deg)); }
- 50% { transform: translate3d(var(--dx, 0), var(--dy, -14px), 0)
- rotate(calc(var(--r, 0deg) + var(--dr, 8deg))); }
-}
-/* embers drifting upward out of the impact */
-@keyframes wd-drift {
- 0% { transform: translateY(0) scale(1); opacity: 0; }
- 15% { opacity: var(--o, 0.85); }
- 85% { opacity: var(--o, 0.85); }
- 100% { transform: translateY(-130px) scale(0.5); opacity: 0; }
-}
-@keyframes wd-twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
-/* the aura behind the shield, breathing */
+/* the aura behind the robot, breathing */
 @keyframes wd-aura {
  0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(1); }
  50% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.14); }
-}
-/* the shield itself: a gentle hover + a glow that pulses brand → spark */
-@keyframes wd-shield {
- 0%, 100% { transform: translateY(0);
- filter: drop-shadow(0 0 10px var(--color-brand))
- drop-shadow(0 0 30px color-mix(in srgb, var(--color-brand) 55%, transparent)); }
- 50% { transform: translateY(-7px);
- filter: drop-shadow(0 0 16px var(--color-brand-2))
- drop-shadow(0 0 46px color-mix(in srgb, var(--color-spark) 40%, transparent)); }
-}
-/* an expanding sentinel ring: the "always watching" pulse */
-@keyframes wd-ring {
- 0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0.6; }
- 100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; }
-}
-/* a slow light sweep across the framed scene */
-@keyframes wd-sweep {
- 0% { transform: translateX(-130%) skewX(-12deg); opacity: 0; }
- 35% { opacity: 0.4; }
- 100% { transform: translateX(130%) skewX(-12deg); opacity: 0; }
 }
 
 .wd-vignette {
@@ -110,13 +79,34 @@ body {
 .wd-grain {
  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.wd-shard { animation: wd-float var(--dur, 9s) ease-in-out infinite; animation-delay: var(--delay, 0s); will-change: transform; }
-.wd-spark { animation: wd-twinkle var(--dur, 4s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
-.wd-ember { animation: wd-drift var(--dur, 7s) linear infinite; animation-delay: var(--delay, 0s); will-change: transform, opacity; }
 .wd-aura { animation: wd-aura 6s ease-in-out infinite; }
-.wd-shield { animation: wd-shield 6s ease-in-out infinite; }
-.wd-ring { animation: wd-ring 4.5s ease-out infinite; }
-.wd-sweep { animation: wd-sweep 9s ease-in-out infinite; }
+/* a dotted field that strengthens toward the lower-centre of the scene */
+.wd-dots {
+ background-image: radial-gradient(color-mix(in srgb, var(--color-brand-2) 60%, transparent) 1px, transparent 1.5px);
+ background-size: 24px 24px;
+ -webkit-mask-image: radial-gradient(135% 105% at 50% 122%, #000 26%, transparent 70%);
+ mask-image: radial-gradient(135% 105% at 50% 122%, #000 26%, transparent 70%);
+}
+/* the giant outline wordmark behind the hero */
+.wd-outline {
+ color: transparent;
+ -webkit-text-stroke: 1.2px color-mix(in srgb, var(--color-brand-2) 20%, transparent);
+}
+/* the brand logo ships white-on-transparent; flip it dark under the light theme */
+:root[data-theme="light"] .wd-logo {
+ filter: invert(1);
+}
+/* inline code in the docs */
+.wd-code {
+ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+ font-size: 0.85em;
+ padding: 0.1em 0.4em;
+ border-radius: 4px;
+ border: 1px solid var(--color-line);
+ background: color-mix(in srgb, var(--color-panel) 80%, transparent);
+ color: var(--color-brand-2);
+ white-space: nowrap;
+}
 .wd-cta { transition: box-shadow 0.25s ease, transform 0.25s ease, background-color 0.25s ease; }
 .wd-cta:hover {
  transform: translateY(-2px);
@@ -130,6 +120,5 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
- .wd-shard, .wd-spark, .wd-ember, .wd-aura, .wd-shield, .wd-ring, .wd-sweep { animation: none; }
- .wd-ember { opacity: 0.5; }
+ .wd-aura { animation: none; }
 }
