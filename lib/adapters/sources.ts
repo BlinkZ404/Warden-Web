@@ -36,7 +36,7 @@ export const ciFailureSource: TriggerSource<{
   name: "ci",
   parse(p) {
     return {
-      source: "sentry", // canonical 'source' enum stays simple in v1
+      source: "ci",
       externalId: `ci:${p.workflow}/${p.job}`,
       fingerprint: `ci/${p.workflow}/${p.job}/${fingerprint(p.failingStep)}`,
       title: `CI failing: ${p.job} → ${p.failingStep}`,
@@ -60,7 +60,7 @@ export const uptimeMonitorSource: TriggerSource<{
   name: "uptime",
   parse(p) {
     return {
-      source: "sentry",
+      source: "uptime",
       externalId: `uptime:${p.endpoint}`,
       fingerprint: `uptime/${p.endpoint}/${p.statusCode}`,
       title: `${p.endpoint} returning ${p.statusCode}`,
@@ -84,7 +84,7 @@ export const userReportSource: TriggerSource<{
   name: "user-report",
   parse(p) {
     return {
-      source: "sentry",
+      source: "user-report",
       externalId: `report:${fingerprint(p.message)}`,
       fingerprint: `user-report/${fingerprint(p.message, p.url ?? "")}`,
       title: `User report: ${p.message.slice(0, 80)}`,

@@ -1,0 +1,15 @@
+# Build the worker image from source only; everything below is rebuilt, secret,
+# or irrelevant to the worker at runtime.
+node_modules
+.next
+.git
+.github
+_private
+.env
+.env.*
+*.log
+coverage
+.vscode
+.idea
+npm-debug.log*
+.warden

@@ -6,9 +6,10 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SeededBug } from "@/lib/sim/bugs";
+import type { IncidentSource } from "@/lib/db/types";
 
 export interface NormalizedError {
-  source: "sentry";
+  source: IncidentSource;
   externalId: string;
   fingerprint: string;
   title: string;

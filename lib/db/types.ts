@@ -19,9 +19,13 @@ export type IncidentStatus =
 
 export type ReviewVerdict = "approve" | "reject" | "uncertain";
 
+/** Where an incident originated. Every trigger source normalizes into one of
+ *  these, so the pipeline stays source-agnostic while the origin is preserved. */
+export type IncidentSource = "sentry" | "ci" | "uptime" | "user-report";
+
 export interface Incident {
   id: string;
-  source: string;
+  source: IncidentSource;
   external_id: string | null;
   fingerprint: string;
   title: string;

@@ -23,6 +23,25 @@ export interface DrainResult {
   processed: number;
 }
 
+/**
+ * Whether a route should drain the queue inline, in the same request that
+ * enqueued the work. On a host with a real filesystem (local dev, a VM, the
+ * worker box) the route can advance the pipeline immediately. On Vercel the
+ * pipeline can't run in a function (read-only FS, no git), so the route just
+ * enqueues and the always-on worker drains it. Continuation is queue-driven
+ * either way (ingest and approval both enqueue), so skipping the inline drain
+ * only changes *who* runs the job, not whether it runs.
+ *
+ * `WARDEN_INLINE_DRAIN` ("1"/"0") forces the choice; otherwise inline unless on
+ * Vercel (which sets `VERCEL=1` in every deployment).
+ */
+export function shouldDrainInline(): boolean {
+  const flag = process.env.WARDEN_INLINE_DRAIN;
+  if (flag === "1") return true;
+  if (flag === "0") return false;
+  return !process.env.VERCEL;
+}
+
 /** Process all currently-runnable jobs, then return. */
 export async function drainJobs(
   workerId = "worker-1",

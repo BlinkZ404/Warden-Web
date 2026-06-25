@@ -1,9 +1,9 @@
 import { query, queryOne } from "@/lib/db/client";
 import { toVectorLiteral } from "@/lib/db/vector";
-import type { Incident, IncidentStatus } from "@/lib/db/types";
+import type { Incident, IncidentStatus, IncidentSource } from "@/lib/db/types";
 
 export interface NewIncident {
-  source?: string;
+  source?: IncidentSource;
   external_id?: string | null;
   fingerprint: string;
   title: string;

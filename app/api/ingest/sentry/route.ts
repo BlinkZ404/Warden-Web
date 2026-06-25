@@ -2,12 +2,14 @@
  * Sentry webhook ingress (PLAN §7, M2). Verifies the signature (live), de-dupes
  * by fingerprint, creates the incident, and kicks the pipeline.
  *
- * In production this would return 202 and let a worker drain the queue; for the
- * demo we drain inline so the incident reaches the approval gate immediately.
+ * The incident is always enqueued. On a single host (local / a VM) we also drain
+ * inline so it reaches the approval gate within this request; on Vercel the
+ * pipeline can't run in a function, so we enqueue only and the worker drains it
+ * (see shouldDrainInline + docs/operations/deploy-aws.md).
  */
 import { normalizeSentryWebhook, verifySignature } from "@/lib/adapters/sentry";
 import { ingestError } from "@/lib/ingest";
-import { drainJobs } from "@/lib/orchestrator/runner";
+import { drainJobs, shouldDrainInline } from "@/lib/orchestrator/runner";
 import { hydrateSettings, isLiveRuntime, sentryClientSecret } from "@/lib/runtime-config";
 
 export const runtime = "nodejs";
@@ -55,7 +57,7 @@ export async function POST(req: Request) {
 
  const normalized = normalizeSentryWebhook(payload as Parameters<typeof normalizeSentryWebhook>[0]);
  const result = await ingestError(normalized);
- await drainJobs("webhook");
+ if (shouldDrainInline()) await drainJobs("webhook");
 
  return Response.json(result, { status: result.deduped ? 200 : 201 });
 }

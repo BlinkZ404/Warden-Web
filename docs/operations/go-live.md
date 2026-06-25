@@ -50,7 +50,9 @@ console page showing the Aurora **Serverless v2** cluster.
  token). The happy path does **not** depend on the cron - the webhook and
  approve routes drain the pipeline inline - so for prompt background
  advancement of the autonomous loop, run `npm run worker` on any always-on host.
- That worker is the real driver; the Vercel cron is just a safety net.
+ That worker is the real driver; the Vercel cron is just a safety net. To run it
+ on AWS (an end-to-end AWS stack: Aurora + AWS compute, Vercel as UI only), see
+ [deploy-aws.md](deploy-aws.md).
 5. For the **deploy/rollback adapter**, create a Vercel **token** and set
  `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID`. Secrets live only in
  the deploy adapter; they are never exposed to the agents (PLAN §5.6).

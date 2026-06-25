@@ -5,7 +5,7 @@
  * tap.
  */
 import { recordApproval, ApprovalStateError } from "@/lib/approval";
-import { drainJobs } from "@/lib/orchestrator/runner";
+import { drainJobs, shouldDrainInline } from "@/lib/orchestrator/runner";
 import { getIncident } from "@/lib/repo/incidents";
 import { checkApiSecret } from "@/lib/auth/api-auth";
 import { sessionActor } from "@/lib/auth/session";
@@ -47,7 +47,9 @@ export async function POST(
  throw e;
  }
 
- await drainJobs("approve");
+ // On a single host, resume the pipeline inline so it ships in one tap; on
+ // Vercel the enqueued resume job is drained by the worker (the UI polls).
+ if (shouldDrainInline()) await drainJobs("approve");
  const incident = await getIncident(id);
  return Response.json({ status: incident?.status });
 }
