@@ -15,6 +15,8 @@ import { openFindings, type TablePosture, type Severity } from "@/lib/security/r
 
 interface ScanResponse {
   postures: TablePosture[];
+  /** True in live mode: the posture scan is a simulation-only demo lane. */
+  live?: boolean;
 }
 
 const SEV_TONE: Record<Severity, string> = {
@@ -56,6 +58,22 @@ export default function Security() {
         <PageHeader title="security" />
         <PageBody>
           <Loading />
+        </PageBody>
+      </div>
+    );
+  }
+
+  if (data.live) {
+    return (
+      <div>
+        <PageHeader title="security" />
+        <PageBody>
+          <Frame innerClassName="px-6 py-8">
+            <p className="text-center text-sm text-[var(--color-muted)]">
+              The row-level security scan runs in simulation mode. Live database
+              scanning is not connected on this deployment.
+            </p>
+          </Frame>
         </PageBody>
       </div>
     );

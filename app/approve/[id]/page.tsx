@@ -16,11 +16,19 @@ import { Wordmark } from "@/app/_components/wordmark";
 export default function Approve() {
  const { id } = useParams<{ id: string }>();
  const [bundle, setBundle] = useState<IncidentBundle | null>(null);
+ const [loaded, setLoaded] = useState(false);
  const [busy, setBusy] = useState(false);
 
  const load = useCallback(async () => {
+ try {
  const res = await fetch(`/api/incidents/${id}`, { cache: "no-store" });
  if (res.ok) setBundle(await res.json());
+ else if (res.status === 404) setBundle(null);
+ } catch {
+ // transient failure: keep the last-good bundle on screen
+ } finally {
+ setLoaded(true);
+ }
  }, [id]);
 
  useEffect(() => {
@@ -57,7 +65,8 @@ export default function Approve() {
  }
  }
 
- if (!bundle) return <main className="p-8 text-center text-[var(--color-muted)]">Loading…</main>;
+ if (!loaded) return <main className="p-8 text-center text-[var(--color-muted)]">Loading…</main>;
+ if (!bundle) return <main className="p-8 text-center text-[var(--color-muted)]">Incident not found.</main>;
 
  const { incident, fixAttempt, verification, deployment } = bundle;
  const awaiting = incident.status === "awaiting_approval";

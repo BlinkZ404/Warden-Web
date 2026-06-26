@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSettings } from "@/app/_components/use-settings";
 import { Section, Row, Select, FIELD } from "@/app/_components/form";
 import { PageHeader, PageBody, Banner, Button } from "@/app/_components/console";
+import { Icon } from "@/app/_components/icons";
 
 type RepoStatus = { repo: string; branch: string; head: string; files: number };
 
@@ -65,7 +66,7 @@ export default function SettingsPage() {
  placeholder="acme/checkout-service"
  value={text("TARGET_REPO_URL")}
  onChange={(e) => set("TARGET_REPO_URL", e.target.value)}
- className={`${FIELD} w-72`}
+ className={`${FIELD} w-full sm:w-72`}
  />
  </Row>
  <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -100,7 +101,7 @@ export default function SettingsPage() {
  placeholder="npm ci"
  value={text("INSTALL_COMMAND")}
  onChange={(e) => set("INSTALL_COMMAND", e.target.value)}
- className={`${FIELD} w-56`}
+ className={`${FIELD} w-full sm:w-56`}
  />
  </Row>
  <Row
@@ -113,7 +114,7 @@ export default function SettingsPage() {
  placeholder="next build"
  value={text("BUILD_COMMAND")}
  onChange={(e) => set("BUILD_COMMAND", e.target.value)}
- className={`${FIELD} w-56`}
+ className={`${FIELD} w-full sm:w-56`}
  />
  </Row>
  <Row
@@ -126,7 +127,7 @@ export default function SettingsPage() {
  placeholder="next start"
  value={text("RUN_COMMAND")}
  onChange={(e) => set("RUN_COMMAND", e.target.value)}
- className={`${FIELD} w-56`}
+ className={`${FIELD} w-full sm:w-56`}
  />
  </Row>
  </Section>
@@ -170,30 +171,8 @@ export default function SettingsPage() {
  onChange={(v) => set("AUTO_APPROVE", v)}
  className="min-w-[180px]"
  >
- <option value="false">off — you approve</option>
- <option value="true">on — autopilot</option>
- </Select>
- </Row>
- </Section>
-
- <Section
- icon="eye"
- title="Reviewer panel"
- onSave={() => save("review", ["REVIEW_PANEL_SIZE"])}
- busy={saving === "review"}
- >
- <Row
- label="Reviewers"
- hint="Default panel size for simulation. In live mode the panel is whichever Reviewer models you assign in API keys."
- >
- <Select
- value={text("REVIEW_PANEL_SIZE", "1")}
- onChange={(v) => set("REVIEW_PANEL_SIZE", v)}
- className="min-w-[160px]"
- >
- <option value="1">1 reviewer</option>
- <option value="2">2 reviewers</option>
- <option value="3">3 reviewers</option>
+ <option value="false">Off (You Approve)</option>
+ <option value="true">On (Autopilot)</option>
  </Select>
  </Row>
  </Section>
@@ -244,12 +223,12 @@ export default function SettingsPage() {
  </Section>
 
  <Section icon="gear" title="Account">
- <Row label="Signed in as" hint="Single-tenant for now.">
+ <Row label="Signed in as" hint="Open access for the demo; no login required.">
  <div className="flex items-center gap-2 font-mono text-xs">
- <span className="grid h-6 w-6 place-items-center rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] text-[10px] text-[var(--color-brand-2)]">
- AR
+ <span className="grid h-6 w-6 place-items-center rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] text-[var(--color-brand-2)]">
+ <Icon name="robot" size={14} />
  </span>
- founder
+ Guest Mode
  </div>
  </Row>
  </Section>

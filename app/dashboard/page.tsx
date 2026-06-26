@@ -11,6 +11,8 @@ import {
  PageHeader,
  PageBody,
  Button,
+ Loading,
+ Banner,
 } from "@/app/_components/console";
 import { IncidentsTable } from "@/app/_components/incidents-table";
 import { actorLabel } from "@/app/_components/brand";
@@ -27,6 +29,7 @@ export default function Dashboard() {
  const [bugs, setBugs] = useState<Bug[]>([]);
  const [firing, setFiring] = useState<string | null>(null);
  const [loaded, setLoaded] = useState(false);
+ const [error, setError] = useState(false);
  const [clearing, setClearing] = useState(false);
 
  const load = useCallback(async () => {
@@ -37,9 +40,11 @@ export default function Dashboard() {
  ]);
  if (incRes.ok) setIncidents((await incRes.json()).incidents ?? []);
  if (metRes.ok) setMetrics((await metRes.json()).metrics ?? null);
+ setError(!incRes.ok && !metRes.ok);
  } catch {
  // A transient fetch or parse failure should not tear down the dashboard;
  // the current data stays on screen and the next poll recovers.
+ setError(true);
  } finally {
  setLoaded(true);
  }
@@ -87,10 +92,19 @@ export default function Dashboard() {
  />
 
  <PageBody>
+ {error && (
+ <Banner>Couldn&apos;t reach the server. Showing the last update; the next refresh retries.</Banner>
+ )}
  {loaded && incidents.length === 0 && <FirstRun bugs={bugs} firing={firing} onFire={fire} />}
  {metrics && <FleetPanel fleet={metrics.fleet} />}
  {metrics && <ScorecardStrip agents={metrics.agents} />}
 
+ {!loaded ? (
+ <div className="mt-7">
+ <Loading />
+ </div>
+ ) : incidents.length > 0 ? (
+ <>
  <div className="mb-2.5 mt-7 flex items-center gap-2">
  <Label>incidents</Label>
  <span className="font-mono text-[10px] text-[var(--color-muted)]">[{incidents.length}]</span>
@@ -98,6 +112,8 @@ export default function Dashboard() {
  <Frame>
  <IncidentsTable incidents={incidents} />
  </Frame>
+ </>
+ ) : null}
  </PageBody>
  </div>
  );

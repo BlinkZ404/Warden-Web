@@ -18,6 +18,7 @@ import {
  PageHeader,
  ExternalLink,
  Loading,
+ Empty,
 } from "@/app/_components/console";
 import { Icon } from "@/app/_components/icons";
 import { ReproTheater } from "@/app/_components/repro-theater";
@@ -29,11 +30,19 @@ import { usd } from "@/lib/pricing";
 export default function IncidentDetail() {
  const { id } = useParams<{ id: string }>();
  const [bundle, setBundle] = useState<IncidentBundle | null>(null);
+ const [loaded, setLoaded] = useState(false);
  const [busy, setBusy] = useState(false);
 
  const load = useCallback(async () => {
+ try {
  const res = await fetch(`/api/incidents/${id}`, { cache: "no-store" });
  if (res.ok) setBundle(await res.json());
+ else if (res.status === 404) setBundle(null);
+ } catch {
+ // transient failure: keep the last-good bundle on screen
+ } finally {
+ setLoaded(true);
+ }
  }, [id]);
 
  useEffect(() => {
@@ -70,7 +79,8 @@ export default function IncidentDetail() {
  }
  }
 
- if (!bundle) return <Loading />;
+ if (!loaded) return <Loading />;
+ if (!bundle) return <Empty>Incident not found. It may have been cleared.</Empty>;
 
  const { incident, investigation, fixAttempt, reviews, verification, deployment, outcome, events } =
  bundle;

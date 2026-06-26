@@ -4,7 +4,7 @@
  * the anon role can no longer read the table. The fix is only recorded if the
  * assertion holds, mirroring the verify-not-review contract of the main pipeline.
  */
-import { hydrateSettings } from "@/lib/runtime-config";
+import { hydrateSettings, isLiveRuntime } from "@/lib/runtime-config";
 import { SIM_TABLES, assessPosture, assertSecured, policySqlFor } from "@/lib/security/rls";
 import { secureTable, securedSet } from "@/lib/repo/posture";
 
@@ -13,6 +13,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   await hydrateSettings();
+  // Simulation-only lane (see GET /api/security): never act on the canned schema
+  // in live mode.
+  if (isLiveRuntime()) {
+    return Response.json({ error: "the posture scan is simulation-only" }, { status: 403 });
+  }
   const body = (await req.json().catch(() => ({}))) as { table?: unknown; decidedBy?: unknown };
   const table = typeof body.table === "string" ? body.table : "";
   const decidedBy = typeof body.decidedBy === "string" && body.decidedBy ? body.decidedBy : "founder";

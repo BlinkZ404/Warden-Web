@@ -59,6 +59,17 @@ const PATHS: Record<string, ReactNode> = {
  <path d="M9 17c.4 1.3 2.7 2.3 5.5 2.3 3 0 5.5-1.1 5.5-2.5v-5c0-1.1-1.6-2-4-2.4" />
  </>
  ),
+ robot: (
+ <>
+ <path d="M12 4v2.4" />
+ <circle cx="12" cy="3.1" r="1" fill="currentColor" stroke="none" />
+ <rect x="5" y="7" width="14" height="12" rx="3" />
+ <path d="M5 11.5H3.3M19 11.5h1.7" />
+ <circle cx="9.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+ <circle cx="14.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+ <path d="M9.5 15.5h5" />
+ </>
+ ),
 };
 
 export function Icon({

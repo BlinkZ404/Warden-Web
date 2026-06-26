@@ -49,7 +49,8 @@ export function AuditTable({
  [events, desc]);
 
  return (
- <div className="font-mono text-[11px] leading-relaxed">
+ <div className="overflow-x-auto font-mono text-[11px] leading-relaxed">
+ <div className="min-w-[640px]">
  <div className="flex items-center gap-4 border-b border-[var(--color-line)] px-5 py-2 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
  <button
  onClick={() => setDesc((d) => !d)}
@@ -117,6 +118,7 @@ export function AuditTable({
  </div>
  );
  })}
+ </div>
  </div>
  );
 }

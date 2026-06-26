@@ -59,7 +59,7 @@ function BrandMark() {
 }
 
 /** The nav body; shared by the desktop sidebar and the mobile drawer. */
-function SidebarContent() {
+function SidebarContent({ live }: { live: boolean }) {
  const pathname = usePathname() ?? "";
  const seg = pathname.replace(/^\/dashboard\/?/, "").split("/")[0];
  const is = (s: string) => seg === s;
@@ -81,9 +81,11 @@ function SidebarContent() {
  <NavItem href="/dashboard/audit" icon="log" active={is("audit")}>
  Audit log
  </NavItem>
+ {!live && (
  <NavItem href="/dashboard/security" icon="shieldCheck" active={is("security")}>
  Security
  </NavItem>
+ )}
 
  <SecLabel>Configure</SecLabel>
  <NavItem href="/dashboard/keys" icon="key" active={is("keys")}>
@@ -106,10 +108,10 @@ function SidebarContent() {
  <ThemeToggle />
  </div>
  <div className="flex items-center gap-2.5 border-t border-[var(--color-line)] px-5 py-3.5 text-xs text-[var(--color-muted)]">
- <span className="grid h-6 w-6 place-items-center rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] font-mono text-[10px] text-[var(--color-brand-2)]">
- AR
+ <span className="grid h-6 w-6 place-items-center rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] text-[var(--color-brand-2)]">
+ <Icon name="robot" size={14} />
  </span>
- founder
+ Guest Mode
  </div>
  </div>
  </>
@@ -117,16 +119,16 @@ function SidebarContent() {
 }
 
 /** Desktop: a sticky full-height rail (hidden below lg). */
-export function Sidebar() {
+export function Sidebar({ live }: { live: boolean }) {
  return (
  <aside className="sticky top-0 hidden h-screen w-60 flex-none flex-col self-start overflow-y-auto border-r border-[var(--color-line)] lg:flex">
- <SidebarContent />
+ <SidebarContent live={live} />
  </aside>
  );
 }
 
 /** Mobile: a top bar with a hamburger that opens the nav as a slide-in drawer. */
-export function MobileNav() {
+export function MobileNav({ live }: { live: boolean }) {
  const [open, setOpen] = useState(false);
  return (
  <div className="lg:hidden">
@@ -157,7 +159,7 @@ export function MobileNav() {
  onClick={() => setOpen(false)}
  className="absolute left-0 top-0 flex h-full w-64 flex-col overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-ink)]"
  >
- <SidebarContent />
+ <SidebarContent live={live} />
  </aside>
  </div>
  )}
