@@ -27,6 +27,25 @@ export interface ModelProvider {
 
 export const MODEL_PROVIDERS: ModelProvider[] = [
  {
+ id: "openrouter",
+ name: "OpenRouter",
+ keyName: "OPENROUTER_API_KEY",
+ baseUrl: "https://openrouter.ai/api/v1",
+ placeholder: "sk-or-…",
+ models: [
+ { label: "Claude 3.7 Sonnet (Anthropic)", id: "anthropic/claude-3.7-sonnet" },
+ { label: "Claude 3.5 Sonnet (Anthropic)", id: "anthropic/claude-3.5-sonnet" },
+ { label: "GPT-4o (OpenAI)", id: "openai/gpt-4o" },
+ { label: "GPT-4.1 (OpenAI)", id: "openai/gpt-4.1" },
+ { label: "Gemini 2.0 Flash (Google)", id: "google/gemini-2.0-flash-001" },
+ { label: "Gemini 1.5 Flash (Google)", id: "google/gemini-flash-1.5" },
+ { label: "DeepSeek V3 (DeepSeek)", id: "deepseek/deepseek-chat" },
+ { label: "Grok 2 (xAI)", id: "x-ai/grok-2-1212" },
+ { label: "Llama 3.3 70B (Meta)", id: "meta-llama/llama-3.3-70b-instruct" },
+ { label: "Qwen 2.5 Coder 32B (Alibaba)", id: "qwen/qwen-2.5-coder-32b-instruct" },
+ ],
+ },
+ {
  id: "claude",
  name: "Claude",
  keyName: "ANTHROPIC_API_KEY",

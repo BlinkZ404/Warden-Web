@@ -14,6 +14,7 @@ const BRANDS: Record<string, { domain?: string; label: string; color: string }> 
  kimi: { domain: "moonshot.ai", label: "Kimi", color: "#7c4dff" },
  deepseek: { domain: "deepseek.com", label: "DeepSeek", color: "#4d6bfe" },
  nvidia: { domain: "nvidia.com", label: "NVIDIA", color: "#76b900" },
+ openrouter: { domain: "openrouter.ai", label: "OpenRouter", color: "#6467f2" },
  sentry: { domain: "sentry.io", label: "Sentry", color: "#9b6dcf" },
  vercel: { domain: "vercel.com", label: "Vercel", color: "#e7eaf0" },
  slack: { domain: "slack.com", label: "Slack", color: "#e01e5a" },
