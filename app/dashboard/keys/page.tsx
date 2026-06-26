@@ -11,9 +11,7 @@ import {
   MODEL_PROVIDERS as PROVIDERS,
   ROLE_SLOTS as ROLES,
   buildAssignment,
-  parseAssignment,
 } from "@/lib/models";
-import { runRateUsd, usd } from "@/lib/pricing";
 
 const OAUTH_MSG: Record<string, { text: string; tone: string }> = {
   connected: { text: "Connected.", tone: "var(--color-ok)" },
@@ -121,27 +119,24 @@ export default function KeysPage() {
               panel, overriding the panel size in settings.
             </p>
           )}
-          {ROLES.map((r) => {
-            const a = parseAssignment(s.text(r.key));
-            return (
-              <div key={r.key} className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm">{r.label}</div>
-                  {r.desc && <div className="mt-0.5 text-xs text-[var(--color-muted)]">{r.desc}</div>}
-                  {managed && (
-                    <div className="mt-0.5 font-mono text-[10px] text-[var(--color-muted)]">
-                      {usd(runRateUsd(a?.id))}/run · billed to balance
-                    </div>
-                  )}
-                </div>
-                <ModelPicker
-                  value={s.text(r.key)}
-                  options={modelOptions}
-                  onChange={(v) => s.set(r.key, v)}
-                />
+          {ROLES.map((r) => (
+            <div key={r.key} className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm">{r.label}</div>
+                {r.desc && <div className="mt-0.5 text-xs text-[var(--color-muted)]">{r.desc}</div>}
+                {managed && (
+                  <div className="mt-0.5 font-mono text-[10px] text-[var(--color-muted)]">
+                    metered to your balance
+                  </div>
+                )}
               </div>
-            );
-          })}
+              <ModelPicker
+                value={s.text(r.key)}
+                options={modelOptions}
+                onChange={(v) => s.set(r.key, v)}
+              />
+            </div>
+          ))}
         </Section>
 
         <Section

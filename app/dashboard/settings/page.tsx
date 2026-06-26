@@ -6,12 +6,10 @@ import { Section, Row, Select, FIELD } from "@/app/_components/form";
 import { PageHeader, PageBody, Banner, Button } from "@/app/_components/console";
 import { Icon } from "@/app/_components/icons";
 
-type RepoStatus = { repo: string; branch: string; head: string; files: number };
-
 export default function SettingsPage() {
  const { text, set, save, saving, error } = useSettings();
  const [pulling, setPulling] = useState(false);
- const [repo, setRepo] = useState<RepoStatus | null>(null);
+ const [saved, setSaved] = useState(false);
  const [repoErr, setRepoErr] = useState<string | null>(null);
  const [repos, setRepos] = useState<{ full_name: string; private: boolean }[]>([]);
 
@@ -24,18 +22,17 @@ export default function SettingsPage() {
  .catch(() => {});
  }, []);
 
- async function pullRepo() {
+ async function saveRepo() {
  setPulling(true);
  setRepoErr(null);
- setRepo(null);
+ setSaved(false);
  try {
- await save("repo", ["TARGET_REPO_URL"]); // persist the URL, then clone it
- const res = await fetch("/api/repo/pull", { method: "POST" });
- const data = await res.json();
- if (data.ok) setRepo(data);
- else setRepoErr(data.error ?? "Pull failed.");
+ // Just persist the URL. The worker clones the repo on the first incident;
+ // cloning needs git + a real filesystem, which the serverless app lacks.
+ await save("repo", ["TARGET_REPO_URL"]);
+ setSaved(true);
  } catch {
- setRepoErr("Pull failed. Check your connection and try again.");
+ setRepoErr("Couldn't save. Try again.");
  } finally {
  setPulling(false);
  }
@@ -99,12 +96,12 @@ export default function SettingsPage() {
  />
  </Row>
  <div className="flex flex-wrap items-center gap-3 pt-1">
- <Button variant="secondary" size="sm" onClick={pullRepo} disabled={pulling}>
- {pulling ? "Pulling…" : "Save & pull"}
+ <Button variant="secondary" size="sm" onClick={saveRepo} disabled={pulling}>
+ {pulling ? "Saving…" : "Save repository"}
  </Button>
- {repo && (
+ {saved && (
  <span className="font-mono text-[11px] text-[var(--color-ok)]">
- ✓ {repo.repo} · {repo.branch}@{repo.head} · {repo.files} files
+ ✓ Saved. Warden clones it on the first incident.
  </span>
  )}
  {repoErr && (
