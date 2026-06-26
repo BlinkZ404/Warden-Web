@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSettings } from "@/app/_components/use-settings";
 import { Section, Row, Select, FIELD } from "@/app/_components/form";
 import { PageHeader, PageBody, Banner, Button } from "@/app/_components/console";
@@ -13,6 +13,16 @@ export default function SettingsPage() {
  const [pulling, setPulling] = useState(false);
  const [repo, setRepo] = useState<RepoStatus | null>(null);
  const [repoErr, setRepoErr] = useState<string | null>(null);
+ const [repos, setRepos] = useState<{ full_name: string; private: boolean }[]>([]);
+
+ // When GitHub is connected, list the account's repos for the picker; the manual
+ // owner/name field stays as a fallback (URLs, or repos not in the first page).
+ useEffect(() => {
+ fetch("/api/repos")
+ .then((r) => (r.ok ? r.json() : { repos: [] }))
+ .then((d) => setRepos(d.repos ?? []))
+ .catch(() => {});
+ }, []);
 
  async function pullRepo() {
  setPulling(true);
@@ -56,6 +66,25 @@ export default function SettingsPage() {
  </Section>
 
  <Section icon="code" title="Target repository" aside="link a GitHub repo">
+ {repos.length > 0 && (
+ <Row label="Your repositories" hint="From your connected GitHub account.">
+ <Select
+ value={repos.some((r) => r.full_name === text("TARGET_REPO_URL")) ? text("TARGET_REPO_URL") : ""}
+ onChange={(v) => {
+ if (v) set("TARGET_REPO_URL", v);
+ }}
+ className="min-w-[220px]"
+ >
+ <option value="">Select a repository…</option>
+ {repos.map((r) => (
+ <option key={r.full_name} value={r.full_name}>
+ {r.full_name}
+ {r.private ? " (private)" : ""}
+ </option>
+ ))}
+ </Select>
+ </Row>
+ )}
  <Row
  label="GitHub repo"
  hint="owner/name or a github.com URL. For a private repo, connect GitHub in API keys first. Leave blank to use the bundled sample app."

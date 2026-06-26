@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSettings, type UseSettings } from "@/app/_components/use-settings";
 import { Section, IntegrationRow, KeyField, Select, FIELD } from "@/app/_components/form";
 import { Label, PageHeader, PageBody, Banner, Button, Dot } from "@/app/_components/console";
@@ -29,7 +29,6 @@ const OAUTH_MSG: Record<string, { text: string; tone: string }> = {
 
 export default function KeysPage() {
   const s = useSettings();
-  const connected = PROVIDERS.filter((p) => s.secret(p.keyName).set).length;
   const managed = s.text("BILLING_MODE", "managed") !== "byok";
   const reviewers = ROLES.filter((r) => r.key.startsWith("REVIEWER_") && s.text(r.key)).length;
   const [oauth, setOauth] = useState<{ provider: string; status: string } | null>(null);
@@ -55,6 +54,13 @@ export default function KeysPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Managed model menu, from the live catalog (brandless), with the static list as
+  // a fallback. BYOK rows are the direct providers only — the managed gateway is
+  // backend-only, so it's never shown as a paste-a-key provider.
+  const orList = orModels ?? PROVIDERS.find((p) => p.id === "openrouter")?.models ?? [];
+  const modelOptions = orList.map((m) => ({ value: buildAssignment("openrouter", m.id), label: m.label }));
+  const byokProviders = PROVIDERS.filter((p) => p.id !== "openrouter");
 
   return (
     <div>
@@ -103,20 +109,56 @@ export default function KeysPage() {
         </Section>
 
         <Section
+          icon="users"
+          title="Role assignments"
+          aside="which model runs each agent"
+          onSave={() => s.save("roles", ROLES.map((r) => r.key))}
+          busy={s.saving === "roles"}
+        >
+          {reviewers > 0 && (
+            <p className="text-[11px] text-[var(--color-muted)]">
+              Live mode runs the {reviewers} assigned reviewer{reviewers > 1 ? "s" : ""} as the
+              panel, overriding the panel size in settings.
+            </p>
+          )}
+          {ROLES.map((r) => {
+            const a = parseAssignment(s.text(r.key));
+            return (
+              <div key={r.key} className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm">{r.label}</div>
+                  {r.desc && <div className="mt-0.5 text-xs text-[var(--color-muted)]">{r.desc}</div>}
+                  {managed && (
+                    <div className="mt-0.5 font-mono text-[10px] text-[var(--color-muted)]">
+                      {usd(runRateUsd(a?.id))}/run · billed to balance
+                    </div>
+                  )}
+                </div>
+                <ModelPicker
+                  value={s.text(r.key)}
+                  options={modelOptions}
+                  onChange={(v) => s.set(r.key, v)}
+                />
+              </div>
+            );
+          })}
+        </Section>
+
+        <Section
           icon="key"
-          title={managed ? "Models (optional keys)" : "Models"}
-          aside={`${connected}/${PROVIDERS.length} connected`}
-          onSave={() => s.save("providers", PROVIDERS.map((p) => p.keyName))}
+          title={managed ? "Bring your own keys (optional)" : "Provider keys"}
+          aside={`${byokProviders.filter((p) => s.secret(p.keyName).set).length} connected`}
+          onSave={() => s.save("providers", byokProviders.map((p) => p.keyName))}
           busy={s.saving === "providers"}
         >
           <p className="text-xs text-[var(--color-muted)]">
             {managed
-              ? "Managed inference is on, so keys are optional. Add one only to bring your own for a provider; otherwise Warden runs the models for you. Pick which model runs each role below."
-              : "Paste a key for any provider you want Warden to use. Pick which model runs each role below."}
+              ? "Inference is managed — you don't need to paste anything. Optionally bring your own key for a provider and Warden uses it instead of the managed pool."
+              : "Paste a key for any provider you want Warden to use directly."}
           </p>
 
           <div className="border-y border-[var(--color-line)]">
-            {PROVIDERS.map((p, i) => {
+            {byokProviders.map((p, i) => {
               const sec = s.secret(p.keyName);
               return (
                 <div
@@ -146,56 +188,6 @@ export default function KeysPage() {
               );
             })}
           </div>
-        </Section>
-
-        <Section
-          icon="users"
-          title="Role assignments"
-          aside="which model runs each agent"
-          onSave={() => s.save("roles", ROLES.map((r) => r.key))}
-          busy={s.saving === "roles"}
-        >
-          {reviewers > 0 && (
-            <p className="text-[11px] text-[var(--color-muted)]">
-              Live mode runs the {reviewers} assigned reviewer{reviewers > 1 ? "s" : ""} as the
-              panel, overriding the panel size in settings.
-            </p>
-          )}
-          {ROLES.map((r) => {
-            const a = parseAssignment(s.text(r.key));
-            return (
-              <div key={r.key} className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm">{r.label}</div>
-                  {r.desc && <div className="mt-0.5 text-xs text-[var(--color-muted)]">{r.desc}</div>}
-                  {managed && (
-                    <div className="mt-0.5 font-mono text-[10px] text-[var(--color-muted)]">
-                      {usd(runRateUsd(a?.id))}/run · billed to balance
-                    </div>
-                  )}
-                </div>
-                <Select
-                  value={s.text(r.key)}
-                  onChange={(v) => s.set(r.key, v)}
-                  className="min-w-[200px]"
-                >
-                  <option value="">(none)</option>
-                  {PROVIDERS.map((p) => {
-                    const models = p.id === "openrouter" && orModels ? orModels : p.models;
-                    return (
-                      <optgroup key={p.id} label={p.name}>
-                        {models.map((m) => (
-                          <option key={m.id} value={buildAssignment(p.id, m.id)}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </Select>
-              </div>
-            );
-          })}
         </Section>
 
         <Section
@@ -341,6 +333,106 @@ function OAuthConnect({ s, provider }: { s: UseSettings; provider: string }) {
         <Button href={`/api/oauth/${provider}/start`} size="sm">
           Connect {p.label}
         </Button>
+      )}
+    </div>
+  );
+}
+
+/** A searchable model dropdown. The catalog is large, so a native select is
+ *  unusable; this filters as you type. Brandless on purpose — the underlying
+ *  gateway is never surfaced to the user. */
+function ModelPicker({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+  const needle = q.trim().toLowerCase();
+  const filtered = needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options;
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQ("");
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  function pick(v: string) {
+    onChange(v);
+    setOpen(false);
+    setQ("");
+  }
+
+  return (
+    <div ref={ref} className="relative w-full sm:w-72">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`${FIELD} flex w-full items-center justify-between gap-2 text-left`}
+      >
+        <span className={`truncate ${selected ? "" : "text-[var(--color-muted)]"}`}>
+          {selected ? selected.label : "Select a model…"}
+        </span>
+        <svg
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden
+          className="shrink-0 text-[var(--color-muted)]"
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-full min-w-[260px] overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] shadow-lg">
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search models…"
+            spellCheck={false}
+            className="w-full border-b border-[var(--color-line)] bg-transparent px-3 py-2 font-mono text-xs outline-none placeholder:text-[var(--color-muted)]"
+          />
+          <div className="max-h-64 overflow-y-auto py-1">
+            <button
+              type="button"
+              onClick={() => pick("")}
+              className="block w-full px-3 py-1.5 text-left font-mono text-xs text-[var(--color-muted)] transition hover:bg-[var(--color-panel)]"
+            >
+              (none)
+            </button>
+            {filtered.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => pick(o.value)}
+                className={`block w-full truncate px-3 py-1.5 text-left font-mono text-xs transition hover:bg-[var(--color-panel)] ${
+                  o.value === value ? "text-[var(--color-brand-2)]" : "text-[var(--color-text)]"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="px-3 py-2 font-mono text-xs text-[var(--color-muted)]">No matches</div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
