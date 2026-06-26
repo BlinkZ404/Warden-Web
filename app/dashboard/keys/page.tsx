@@ -33,6 +33,7 @@ export default function KeysPage() {
   const managed = s.text("BILLING_MODE", "managed") !== "byok";
   const reviewers = ROLES.filter((r) => r.key.startsWith("REVIEWER_") && s.text(r.key)).length;
   const [oauth, setOauth] = useState<{ provider: string; status: string } | null>(null);
+  const [orModels, setOrModels] = useState<{ id: string; label: string }[] | null>(null);
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -42,6 +43,17 @@ export default function KeysPage() {
       setOauth({ provider, status });
       window.history.replaceState({}, "", window.location.pathname);
     }
+  }, []);
+
+  // OpenRouter's catalog is public and shifts over time, so pull the live list
+  // for its dropdown; falls back to the static list on any failure.
+  useEffect(() => {
+    fetch("/api/models/openrouter")
+      .then((r) => (r.ok ? r.json() : { models: [] }))
+      .then((d) => {
+        if (Array.isArray(d.models) && d.models.length) setOrModels(d.models);
+      })
+      .catch(() => {});
   }, []);
 
   return (
@@ -168,15 +180,18 @@ export default function KeysPage() {
                   className="min-w-[200px]"
                 >
                   <option value="">(none)</option>
-                  {PROVIDERS.map((p) => (
-                    <optgroup key={p.id} label={p.name}>
-                      {p.models.map((m) => (
-                        <option key={m.id} value={buildAssignment(p.id, m.id)}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
+                  {PROVIDERS.map((p) => {
+                    const models = p.id === "openrouter" && orModels ? orModels : p.models;
+                    return (
+                      <optgroup key={p.id} label={p.name}>
+                        {models.map((m) => (
+                          <option key={m.id} value={buildAssignment(p.id, m.id)}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </Select>
               </div>
             );
