@@ -137,3 +137,18 @@ export async function deliverFix(input: DeliverInput): Promise<DeliverResult> {
 
   return { repo, prNumber, prUrl, merged };
 }
+
+/** Merge an already-open PR by number (squash). Powers the dashboard's "Merge"
+ *  action on a fix Warden delivered as a PR. */
+export async function mergePr(prNumber: number): Promise<{ merged: boolean }> {
+  const ref = requireRepo();
+  const token = requireToken();
+  const repo = `${ref.owner}/${ref.name}`;
+  const m = await gh<{ merged?: boolean } & ApiError>(
+    `/repos/${repo}/pulls/${prNumber}/merge`,
+    { method: "PUT", body: JSON.stringify({ merge_method: "squash" }) },
+    token,
+  );
+  if (!m.ok) throw new Error(`merge failed (${m.status}): ${m.data.message ?? "unknown error"}`);
+  return { merged: !!m.data.merged };
+}

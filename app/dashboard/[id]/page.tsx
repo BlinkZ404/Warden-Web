@@ -91,6 +91,16 @@ export default function IncidentDetail() {
  }
  }
 
+ async function merge() {
+ setBusy(true);
+ try {
+ await fetch(`/api/incidents/${id}/merge`, { method: "POST" });
+ await load();
+ } finally {
+ setBusy(false);
+ }
+ }
+
  if (!loaded) return <Loading />;
  if (!bundle) return <Empty>Incident not found. It may have been cleared.</Empty>;
 
@@ -256,7 +266,7 @@ export default function IncidentDetail() {
  }
  const deliveredPr = events.find(
  (e) => e.type === "deploy" && !!(e.payload as { delivered?: boolean }).delivered,
- )?.payload as { prUrl?: string } | undefined;
+ )?.payload as { prUrl?: string; prNumber?: number; merged?: boolean } | undefined;
  if (outcome)
  arts.push({
  key: "out",
@@ -264,18 +274,14 @@ export default function IncidentDetail() {
  title: "Outcome",
  body: (
  <>
- <Field label="resolved" value={String(outcome.resolved)} />
- <Field label="type" value={outcome.resolution_type ?? "—"} />
- {deliveredPr?.prUrl && (
- <a
- href={deliveredPr.prUrl}
- target="_blank"
- rel="noreferrer"
- className="mt-2 inline-block break-all font-mono text-xs text-[var(--color-accent)] underline underline-offset-2"
- >
- {deliveredPr.prUrl}
- </a>
+ <div className="flex items-center gap-2 font-mono text-sm">
+ <span style={{ color: outcome.resolved ? "var(--color-ok)" : "var(--color-muted)" }}>
+ {outcome.resolved ? "✓ Resolved" : "Unresolved"}
+ </span>
+ {outcome.resolution_type && (
+ <span className="text-[var(--color-muted)]">· {outcome.resolution_type} fix</span>
  )}
+ </div>
  {outcome.notes && (
  <p className="mt-2 text-xs leading-relaxed text-[var(--color-muted)]">{outcome.notes}</p>
  )}
@@ -377,7 +383,27 @@ export default function IncidentDetail() {
  </div>
  )}
 
- {incident.status === "resolved" && deployment && !deployment.rolled_back && (
+ {incident.status === "resolved" && deliveredPr?.prUrl && (
+ <Frame className="mt-5" innerClassName="p-6">
+ <p className="font-semibold text-[var(--color-ok)]">Fix delivered as a pull request.</p>
+ <p className="mt-1 text-sm text-[var(--color-muted)]">
+ Warden pushed the verified fix and opened PR #{deliveredPr.prNumber} on your repo. Review
+ and merge it, or let Warden merge it for you.
+ </p>
+ <div className="mt-4 flex flex-wrap gap-3">
+ <Button href={deliveredPr.prUrl} size="lg">
+ View PR #{deliveredPr.prNumber} ↗
+ </Button>
+ {!deliveredPr.merged && (
+ <Button variant="secondary" size="lg" onClick={() => merge()} disabled={busy}>
+ {busy ? "…" : "Merge"}
+ </Button>
+ )}
+ </div>
+ </Frame>
+ )}
+
+ {incident.status === "resolved" && !deliveredPr?.prUrl && deployment && !deployment.rolled_back && (
  <Frame className="mt-5" innerClassName="p-6">
  <p className="font-semibold text-[var(--color-ok)]">Shipped to production.</p>
  <p className="mt-1 text-sm text-[var(--color-muted)]">
