@@ -24,6 +24,9 @@ export interface NormalizedError {
   triggeringRequest?: unknown;
   /** The full captured HTTP request, for booting the app and replaying it. */
   httpRequest?: { method: string; path: string; body?: unknown };
+  /** The commit the error fired on (from Sentry's release), when SHA-like. Lets a
+   *  fix reconcile the trace against the current repo HEAD. */
+  deployedCommit?: string;
   firstSeen: Date;
   lastSeen: Date;
   raw: Record<string, unknown>;
@@ -84,6 +87,7 @@ interface SentryIssuePayload {
       lastSeen?: string;
     };
     event?: {
+      release?: string;
       exception?: { values?: { stacktrace?: { frames?: StackFrame[] } }[] };
       request?: { method?: string; url?: string; data?: unknown };
     };
@@ -142,6 +146,19 @@ function projectName(project?: string | { slug?: string; name?: string }): strin
   return project.slug ?? project.name ?? "unknown";
 }
 
+/**
+ * The deployed commit the event came from, parsed from Sentry's `release`. Releases
+ * are commonly `<name>@<version>`; we take the trailing segment and keep it only
+ * when it looks like a git SHA, so it can be reconciled against the repo. Vercel's
+ * Sentry integration sets the release to the commit SHA, so this is populated for
+ * the common deploy setup; otherwise it's left undefined.
+ */
+function commitFromRelease(release?: string): string | undefined {
+  if (!release) return undefined;
+  const tail = release.trim().split("@").pop() ?? "";
+  return /^[0-9a-f]{7,40}$/i.test(tail) ? tail.toLowerCase() : undefined;
+}
+
 /** Map a Sentry issue webhook payload to our canonical error shape. */
 export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedError {
   const issue = payload.data?.issue ?? {};
@@ -162,6 +179,7 @@ export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedE
   const triggeringRequest =
     payload._triggeringRequest ?? (event ? pickTriggeringRequest(event) : undefined);
   const httpRequest = payload._httpRequest ?? (event ? pickHttpRequest(event) : undefined);
+  const deployedCommit = commitFromRelease(event?.release);
 
   return {
     source: "sentry",
@@ -176,6 +194,7 @@ export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedE
     culpritFunction,
     triggeringRequest,
     httpRequest,
+    deployedCommit,
     firstSeen: toDate(issue.firstSeen),
     lastSeen: toDate(issue.lastSeen),
     raw: payload as Record<string, unknown>,

@@ -12,7 +12,7 @@ export default function AuditPage() {
  "/api/audit?limit=200",
  (j) => (j as { events: AuditRow[] }).events ?? [],
  5000);
- const events = data ?? [];
+ const events = useMemo(() => data ?? [], [data]);
  const [filter, setFilter] = useState<string>("all");
 
  const types = useMemo(() => {

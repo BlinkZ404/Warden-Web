@@ -218,7 +218,7 @@ export default function SettingsPage() {
  min={1}
  value={text("POLICY_MAX_FILES", "5")}
  onChange={(e) => set("POLICY_MAX_FILES", e.target.value)}
- className={`${FIELD} w-24`}
+ className={`${FIELD} sm:w-24`}
  />
  </Row>
  <Row label="Max diff lines" hint="Total added + removed lines before a fix counts as too large.">
@@ -227,7 +227,7 @@ export default function SettingsPage() {
  min={1}
  value={text("POLICY_MAX_CHURN", "120")}
  onChange={(e) => set("POLICY_MAX_CHURN", e.target.value)}
- className={`${FIELD} w-24`}
+ className={`${FIELD} sm:w-24`}
  />
  </Row>
  <div>
@@ -252,7 +252,7 @@ export default function SettingsPage() {
  <Row label="Signed in as" hint="Open access for the demo; no login required.">
  <div className="flex items-center gap-2 font-mono text-xs">
  <span className="grid h-6 w-6 place-items-center rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] text-[var(--color-brand-2)]">
- <Icon name="robot" size={14} />
+ <Icon name="user" size={14} />
  </span>
  Guest Mode
  </div>

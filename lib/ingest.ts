@@ -48,6 +48,7 @@ export async function ingestError(err: NormalizedError): Promise<IngestResult> {
       httpRequest: err.httpRequest,
       externalId: err.externalId,
       severity: err.severity,
+      deployedCommit: err.deployedCommit ?? null,
     });
     await enqueue(incident.id);
     return { incidentId: incident.id, deduped: false };

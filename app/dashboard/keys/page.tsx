@@ -148,7 +148,7 @@ export default function KeysPage() {
         >
           <p className="text-xs text-[var(--color-muted)]">
             {managed
-              ? "Inference is managed — you don't need to paste anything. Optionally bring your own key for a provider and Warden uses it instead of the managed pool."
+              ? "Inference is managed, so you don't need to paste anything. Optionally bring your own key for a provider and Warden uses it instead of the managed pool."
               : "Paste a key for any provider you want Warden to use directly."}
           </p>
 

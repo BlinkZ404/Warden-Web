@@ -109,7 +109,7 @@ function SidebarContent({ live }: { live: boolean }) {
  </div>
  <div className="flex items-center gap-2.5 border-t border-[var(--color-line)] px-5 py-3.5 text-xs text-[var(--color-muted)]">
  <span className="grid h-6 w-6 place-items-center rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] text-[var(--color-brand-2)]">
- <Icon name="robot" size={14} />
+ <Icon name="user" size={14} />
  </span>
  Guest Mode
  </div>

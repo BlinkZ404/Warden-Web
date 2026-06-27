@@ -45,6 +45,12 @@ const PATHS: Record<string, ReactNode> = {
  <path d="M16 5.5a3 3 0 0 1 0 5.8M20.5 20c0-2.4-1.6-4-3.5-4.6" />
  </>
  ),
+ user: (
+ <>
+ <circle cx="12" cy="8" r="3.5" />
+ <path d="M5.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
+ </>
+ ),
  plus: <path d="M12 5v14M5 12h14" />,
  gauge: (
  <>

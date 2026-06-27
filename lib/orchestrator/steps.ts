@@ -56,6 +56,7 @@ import {
   diffText,
   diffStat,
   remoteDefaultBranch,
+  revParse,
 } from "@/lib/adapters/workspace";
 import type { ReproDescriptor, RequestSpec } from "@/lib/adapters/workspace";
 import type { FixAttempt } from "@/lib/db/types";
@@ -581,15 +582,47 @@ async function stepApproved(incident: Incident) {
   await transition(incident.id, "deploying", "system");
 }
 
+/** The deployed commit the incident's error fired on (recorded on the ingest event). */
+async function deployedCommitFor(incidentId: string): Promise<string | null> {
+  for (const e of await listEvents(incidentId)) {
+    if (e.type === "ingest") {
+      const c = (e.payload as { deployedCommit?: string | null }).deployedCommit;
+      if (typeof c === "string" && c) return c;
+    }
+  }
+  return null;
+}
+
+/** Whether two SHAs name the same commit, tolerating abbreviation on either side. */
+function sameCommit(a: string, b: string): boolean {
+  return a.startsWith(b) || b.startsWith(a);
+}
+
 /** PR/issue body for a GitHub-delivered fix: what broke + how it was verified. */
-function deliveryBody(incident: Incident, rootCause?: string | null): string {
+function deliveryBody(
+  incident: Incident,
+  rootCause?: string | null,
+  provenance?: { deployedCommit?: string | null; head?: string | null },
+): string {
   const lines = [
-    "## Warden — verified fix",
+    "## Warden verified fix",
     "",
     `**Incident:** ${incident.title}`,
     `**Service:** ${incident.service}`,
   ];
   if (rootCause) lines.push(`**Root cause:** ${rootCause}`);
+  const dep = provenance?.deployedCommit;
+  const head = provenance?.head;
+  if (dep) {
+    const short = dep.slice(0, 7);
+    if (head && !sameCommit(head, dep)) {
+      lines.push(
+        `**Reported on deploy:** \`${short}\`. The repo has advanced to \`${head.slice(0, 7)}\` since, so this fix is built on current \`HEAD\`.`,
+      );
+    } else {
+      lines.push(`**Reported on deploy:** \`${short}\` (current \`HEAD\`).`);
+    }
+  }
   lines.push(
     "",
     "Verified by Warden: the production error reproduces on the pre-fix code and no longer occurs after this change, with the test suite passing.",
@@ -613,12 +646,14 @@ async function stepDeploying(incident: Incident) {
     const root = workspacePath(incident.id);
     const base = await remoteDefaultBranch(root);
     const inv = await latestInvestigation(incident.id);
+    const deployedCommit = await deployedCommitFor(incident.id);
+    const head = deployedCommit ? await revParse(root, "HEAD").catch(() => null) : null;
     const result = await deliverFix({
       workspaceRoot: root,
       branch: fa.branch,
       base,
       title: `Warden: fix ${incident.title}`,
-      body: deliveryBody(incident, inv?.root_cause),
+      body: deliveryBody(incident, inv?.root_cause, { deployedCommit, head }),
       merge: mode === "merge",
     });
     await logEvent(incident.id, "deploy", "system", {

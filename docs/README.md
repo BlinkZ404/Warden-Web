@@ -1,25 +1,22 @@
 # Warden documentation
 
-All project docs live under `docs/`. The repo root keeps only [README.md](../README.md) as the entry point.
+Design and engineering docs for Warden. The repo entry point is the root
+[README.md](../README.md).
 
-## Product & engineering
+## Architecture
 
-| Doc | Description |
+| Doc | What's in it |
 |-----|-------------|
-| [product/plan.md](product/plan.md) | Build spec: milestones, non-negotiables, acceptance criteria |
-| [product/architecture.md](product/architecture.md) | As-built architecture (mermaid diagrams) |
+| [product/architecture-diagram.md](product/architecture-diagram.md) | The system diagram (control / coordination / execution planes), how a verdict is decided, and the fix-iterate loop |
+| [product/architecture.md](product/architecture.md) | As-built design: the incident state machine, the safety model, and the simulation/live split |
+| [product/best-practices.md](product/best-practices.md) | Engineering tradeoffs and the reasoning behind them |
+| [product/db-posture-audit.md](product/db-posture-audit.md) | Database security and Row-Level-Security posture |
 
 ## Operations
 
-| Doc | Description |
+| Doc | What's in it |
 |-----|-------------|
-| [operations/go-live.md](operations/go-live.md) | Provision Aurora, Vercel, Sentry; flip to live mode |
-
-## Business
-
-| Doc | Description |
-|-----|-------------|
-| [business/business-plan.md](business/business-plan.md) | ICP, positioning, economics, competitive landscape |
+| [operations/deploy-aws.md](operations/deploy-aws.md) | Deploying the EC2 worker and Aurora on AWS |
 
 ## Sample app
 

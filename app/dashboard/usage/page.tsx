@@ -21,7 +21,7 @@ import { Brand, actorLabel } from "@/app/_components/brand";
 import { Icon } from "@/app/_components/icons";
 import { usePolled } from "@/app/_components/use-polled";
 import { ROLE_SLOTS as ROLES, parseAssignment } from "@/lib/models";
-import { usd, runRateUsd, TOPUP_OPTIONS_USD, LOW_BALANCE_USD } from "@/lib/pricing";
+import { usd, TOPUP_OPTIONS_USD, LOW_BALANCE_USD } from "@/lib/pricing";
 import type { LedgerEntry } from "@/lib/repo/wallet";
 import type { BillingMode } from "@/lib/billing";
 
@@ -135,7 +135,7 @@ export default function UsagePage() {
             )}
           </Cell>
 
-          <Cell icon={<Icon name="key" />} title="Active models" aside="rate per run">
+          <Cell icon={<Icon name="key" />} title="Active models" aside="by role">
             <div className="space-y-2">
               {ROLES.map((r) => {
                 const a = parseAssignment(settings?.[r.key]);
@@ -146,14 +146,9 @@ export default function UsagePage() {
                       <span className="flex items-center gap-2 font-mono text-[var(--color-text)]">
                         <Brand actor={a.pid} size={14} />
                         {a.label}
-                        <span className="text-[var(--color-muted)]">
-                          {usd(runRateUsd(a.id))}/run
-                        </span>
                       </span>
                     ) : (
-                      <span className="font-mono text-[var(--color-muted)]">
-                        managed default {usd(runRateUsd(null))}/run
-                      </span>
+                      <span className="font-mono text-[var(--color-muted)]">managed default</span>
                     )}
                   </div>
                 );

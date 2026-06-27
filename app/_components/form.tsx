@@ -49,12 +49,12 @@ export function Row({
  children: ReactNode;
 }) {
  return (
- <div className="flex flex-wrap items-center justify-between gap-3">
- <div>
+ <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+ <div className="min-w-0 sm:flex-1">
  <div className="text-sm">{label}</div>
  {hint && <div className="mt-0.5 text-xs text-[var(--color-muted)]">{hint}</div>}
  </div>
- {children}
+ <div className="w-full shrink-0 sm:w-auto">{children}</div>
  </div>
  );
 }

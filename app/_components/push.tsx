@@ -80,9 +80,9 @@ export function EnableNotifications() {
  <button
  onClick={enable}
  disabled={state !== "idle"}
- className="rounded-full border border-[var(--color-line)] px-3 py-1 text-[10px] text-[var(--color-muted)]"
+ className="rounded-md border border-[var(--color-line)] px-3 py-1 text-[10px] text-[var(--color-muted)] transition hover:border-[var(--color-brand)] hover:text-[var(--color-text)]"
  >
- {state === "on" ? "🔔 on" : state === "working" ? "…" : "Enable notifications"}
+ {state === "on" ? "Notifications on" : state === "working" ? "Enabling…" : "Enable notifications"}
  </button>
  );
 }

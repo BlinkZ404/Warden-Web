@@ -59,6 +59,18 @@ body {
  border-radius: inherit;
 }
 
+/* Number inputs: drop the native spin buttons so they read like the app's other
+ fields instead of the browser default. */
+input[type="number"] {
+ -moz-appearance: textfield;
+ appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+ -webkit-appearance: none;
+ margin: 0;
+}
+
 /* ───────────────────────────────────────────────────────────────────────────
  Cinematic landing hero. Pure CSS (transform/opacity/filter) so the page stays
  a zero-JS server component. Honors prefers-reduced-motion.

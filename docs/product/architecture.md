@@ -24,11 +24,11 @@ flowchart TB
 
  ORCH <--> DB[(Amazon Aurora PostgreSQL<br/>Serverless v2 + pgvector)]
 
- ORCH --> INV[Investigator · Claude<br/>read-only DB role]
- ORCH --> FIX[Fixer · Claude<br/>patch on a branch; no deploy]
- ORCH --> REV[Reviewer · OpenAI<br/>diff + git-history checks]
+ ORCH --> INV[Investigator<br/>read-only DB role]
+ ORCH --> FIX[Fixer<br/>patch on a branch; no deploy]
+ ORCH --> REV[Reviewer panel<br/>multi-lab cross-check]
  ORCH --> GATE[[verification gate<br/>tests + error-gone + no-new-errors]]
- ORCH --> DEP[Deploy adapter · Vercel<br/>preview → promote → rollback]
+ ORCH --> DEP[Delivery<br/>GitHub PR / merge]
 
  GATE --> PUSH[Web push / Slack]
  PUSH --> PWA[Mobile approval PWA]
@@ -70,7 +70,7 @@ stateDiagram-v2
  dismissed --> [*]
 ```
 
-## The database is the product (PLAN §4, §9)
+## The database is the product
 
 Aurora PostgreSQL is used as three things at once:
 
@@ -84,7 +84,7 @@ Aurora PostgreSQL is used as three things at once:
 Per-incident artifacts: `investigations`, `fix_attempts`, `reviews`,
 `verifications`, `approvals`, `deployments`, `outcomes`.
 
-## The safety model (PLAN §5)
+## The safety model
 
 ```mermaid
 flowchart LR
@@ -116,7 +116,7 @@ verification real.**
 | Capability | Simulation (default, offline) | Live (`WARDEN_MODE=live` + key) |
 |---|---|---|
 | Error source | synthetic Sentry events | real Sentry webhook + HMAC verify |
-| Fixer / Reviewer | deterministic, real git edits + real diff analysis | Anthropic / OpenAI APIs |
+| Fixer / Reviewer | deterministic, real git edits + real diff analysis | OpenRouter (managed inference) |
 | Embeddings | local hashing vectorizer (deterministic) | embeddings API |
 | Deploy / rollback | recorded, plausible URLs | Vercel API |
 | Push delivery | recorded as a `notification` event | web-push (VAPID) |

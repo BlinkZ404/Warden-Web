@@ -134,13 +134,26 @@ async function doPull(): Promise<RepoStatus> {
 
 /**
  * The directory the workspace should copy from: the cached clone of the linked
- * repo (cloning it on first use), or the bundled sample app when none is linked.
+ * repo (refreshed to the latest default-branch HEAD on each call), or the bundled
+ * sample app when none is linked.
  */
 export async function ensureTargetRepo(): Promise<string> {
   const url = targetRepoUrl();
   const ref = url ? parseRepo(url) : null;
   if (!ref) return resolve(process.cwd(), config.targetRepoPath);
   const dir = cacheDir(ref);
-  if (!(await exists(join(dir, ".git")))) await pullTargetRepo();
+  // Refresh to the current default-branch HEAD on every incident so a fix targets
+  // the live code, not the first-clone snapshot. Without this, a repo that changed
+  // after the first incident would be fixed against stale code and the PR would
+  // diff a stale base. The worker drains incidents sequentially, so this never
+  // races a workspace copy, and pullTargetRepo() coalesces concurrent callers.
+  try {
+    await pullTargetRepo();
+  } catch (e) {
+    // A transient fetch failure shouldn't block an incident when a clone already
+    // exists to work from; fall back to the cached snapshot. With no cache at all,
+    // there's nothing to fix against, so surface the error.
+    if (!(await exists(join(dir, ".git")))) throw e;
+  }
   return dir;
 }
