@@ -6,6 +6,7 @@ import { useSettings, type UseSettings } from "@/app/_components/use-settings";
 import { Section, IntegrationRow, KeyField, Select, FIELD } from "@/app/_components/form";
 import { Label, PageHeader, PageBody, Banner, Button, Dot } from "@/app/_components/console";
 import { Brand } from "@/app/_components/brand";
+import { CopyButton } from "@/app/_components/copy-button";
 import { getOAuthProvider } from "@/lib/auth/oauth-providers";
 import {
   MODEL_PROVIDERS as PROVIDERS,
@@ -24,6 +25,25 @@ const OAUTH_MSG: Record<string, { text: string; tone: string }> = {
   error: { text: "Couldn't connect. Try again or paste a token below.", tone: "var(--color-bad)" },
   unknown: { text: "Unknown provider.", tone: "var(--color-bad)" },
 };
+
+/** Read-only inbound webhook URL (origin resolved client-side) for copy-paste setup. */
+function WebhookUrlBox({ path, hint }: { path: string; hint: string }) {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const url = `${origin}${path}`;
+  return (
+    <div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-muted)]">
+        Webhook URL
+      </div>
+      <div className="mt-1.5 flex items-center gap-2">
+        <div className={`${FIELD} min-w-0 flex-1 truncate`}>{origin ? url : path}</div>
+        <CopyButton value={url} />
+      </div>
+      <p className="mt-1 text-[11px] text-[var(--color-muted)]">{hint}</p>
+    </div>
+  );
+}
 
 export default function KeysPage() {
   const s = useSettings();
@@ -192,6 +212,10 @@ export default function KeysPage() {
           busy={s.saving === "sentry"}
         >
           <IntegrationRow actor="sentry" name="Sentry" connected={s.secret("SENTRY_CLIENT_SECRET").set} />
+          <WebhookUrlBox
+            path="/api/ingest/sentry"
+            hint="Paste this into your Sentry internal integration's Webhook URL."
+          />
           <KeyField
             label="Webhook signing secret"
             secret={s.secret("SENTRY_CLIENT_SECRET")}
@@ -200,8 +224,8 @@ export default function KeysPage() {
             onChange={(v) => s.set("SENTRY_CLIENT_SECRET", v)}
           />
           <p className="text-[11px] text-[var(--color-muted)]">
-            Add this webhook as a Sentry internal integration; the signing secret verifies inbound
-            deliveries.
+            Create a Sentry internal integration with the webhook URL above, then paste the signing
+            secret it gives you here. The secret verifies inbound deliveries.
           </p>
         </Section>
 
@@ -267,9 +291,12 @@ export default function KeysPage() {
         >
           <IntegrationRow actor="slack" name="Slack" connected={s.secret("SLACK_BOT_TOKEN").set} />
           <p className="text-xs text-[var(--color-muted)]">
-            Get the approval card with Approve / Reject buttons in Slack. Point your app&rsquo;s
-            interactivity URL at <span className="font-mono">/api/slack/interactions</span>.
+            Get the approval card with Approve / Reject buttons in Slack.
           </p>
+          <WebhookUrlBox
+            path="/api/slack/interactions"
+            hint="Set this as the Interactivity Request URL in your Slack app."
+          />
           <KeyField
             label="Bot token"
             secret={s.secret("SLACK_BOT_TOKEN")}
