@@ -429,7 +429,10 @@ async function run(root: string, cmd: string, args: string[]): Promise<RunResult
  * sail through verification). The caller fails closed on testsRun === 0.
  */
 export async function runTests(root: string): Promise<RunResult> {
-  const result = await run(root, "node", ["--test"]);
+  // --experimental-strip-types lets a TypeScript suite run under `node --test` on
+  // Node 22.6+ with no build step; a no-op for plain JS and on newer Node where
+  // type stripping is already the default.
+  const result = await run(root, "node", ["--experimental-strip-types", "--test"]);
   // node:test prints a summary line like "ℹ tests 5" / "# tests 5".
   const m = `${result.stdout}\n${result.stderr}`.match(
     /(?:^|\n)\s*(?:#|ℹ)\s*tests\s+(\d+)/,

@@ -20,7 +20,7 @@ export function eventSummary(
  let out: string;
  switch (type) {
  case "state_change":
- out = `${humanizeState(p.from)} → ${humanizeState(p.to)}`;
+ out = `${humanizeState(p.from)} → ${humanizeState(p.to)}${p.reason ? ` · ${str("reason")}` : ""}`;
  break;
  case "agent_action": {
  const action = str("action").replace(/_/g, " ");
@@ -32,20 +32,25 @@ export function eventSummary(
  case "ingest":
  out = [str("errorType"), str("errorMessage")].filter(Boolean).join(": ");
  break;
- case "gate":
- out = `${str("gate")} ${p.pass ? "passed" : "failed"}`;
+ case "gate": {
+ const reasons = Array.isArray(p.reasons) ? p.reasons.filter(Boolean).join("; ") : "";
+ out = `${str("gate")} ${p.pass ? "passed" : "failed"}${reasons ? `: ${reasons}` : ""}`;
  break;
+ }
  case "verification": {
  // `new_errors` is a count on the event payload but an array on the row;
  // normalize both to a length so an empty array does not read as truthy.
  const newCount = Array.isArray(p.new_errors)
  ? p.new_errors.length
  : Number(p.new_errors) || 0;
- out = [
- p.test_passed ? "tests pass" : "tests fail",
- p.error_recurred ? "error recurred" : "error gone",
- newCount ? "new errors" : "no new errors",
- ].join(" · ");
+ const collected = Number(p.tests_collected) || 0;
+ const tests =
+ collected === 0
+ ? "no tests found, proceeding"
+ : p.test_passed
+ ? `${collected} tests pass, no regression`
+ : "regression: a test now fails";
+ out = newCount ? `${tests} · ${newCount} new errors` : tests;
  break;
  }
  case "repro": {

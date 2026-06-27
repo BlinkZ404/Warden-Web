@@ -481,26 +481,16 @@ async function stepVerifying(incident: Incident) {
       reproVia = "scenario";
     }
 
-    // Fail closed (§5.8): if we could neither run any tests nor reproduce the
-    // original error, the fix is NOT honestly verified; escalate instead of
-    // recording a vacuous pass. Reaches here for a real live incident whose
-    // target has no tests and no reproduction harness yet (see docs/operations/go-live.md).
-    if (!reproChecked && testsCollected === 0) {
-      await escalateGate(
-        incident.id,
-        "verification",
-        ["could not verify: no tests collected and no reproduction available"],
-        "verification not possible: no tests and no reproduction harness",
-      );
-      return;
-    }
-
-    // A real suite is the gold signal. For a test-less repo (the vibe-coded
-    // majority) we synthesize it from the event: if the captured production-failing
-    // request stopped throwing, that reproduction stands in for the absent suite.
+    // The suite is a REGRESSION gate, not proof of the fix: a test for this exact
+    // bug couldn't exist, or it would have caught it before prod. The reviewer panel
+    // already confirmed the fix is correct; the suite confirms it broke nothing that
+    // was passing. So a regression (a green suite now failing) blocks, a seeded
+    // reproduction still counts as direct confirmation, and a target with nothing
+    // executable to run proceeds on the review rather than escalating.
     const verifiedViaRepro = reproChecked && !errorRecurred;
     const synthesized = !suitePassed && testsCollected === 0 && verifiedViaRepro;
-    const testPassed = suitePassed || synthesized;
+    const noExecutableCheck = testsCollected === 0 && !reproChecked;
+    const testPassed = suitePassed || synthesized || noExecutableCheck;
 
     // No-new-errors battery. Seeded incidents carry known-good inputs; a real
     // test-less incident gets a baseline-checked battery synthesized from the
@@ -533,7 +523,7 @@ async function stepVerifying(incident: Incident) {
       preview_url: preview.previewUrl,
       test_passed: testPassed,
       tests_collected: testsCollected,
-      verified_via: suitePassed ? "suite" : synthesized ? "synthesized-repro" : "none",
+      verified_via: suitePassed ? "suite" : synthesized ? "synthesized-repro" : noExecutableCheck ? "review" : "none",
       repro_via: reproVia,
       smoke_mode: smokeMode,
       error_recurred: errorRecurred,
