@@ -74,6 +74,18 @@ export function assignedReviewers(): CompatProvider[] {
  .filter((p): p is CompatProvider => p != null);
 }
 
+/** The reviewer panel with each slot's provider id, for branded attribution. */
+export function assignedReviewerSlots(): { provider: CompatProvider; pid: string }[] {
+ return [1, 2, 3]
+ .map((n) => {
+ const key = `REVIEWER_${n}_MODEL`;
+ const provider = assignedProvider(key);
+ const pid = assignedPid(key);
+ return provider && pid ? { provider, pid } : null;
+ })
+ .filter((s): s is { provider: CompatProvider; pid: string } => s != null);
+}
+
 function intIn(raw: string, def: number, min: number, max: number): number {
  const v = parseInt(raw, 10);
  return Number.isNaN(v) ? def : Math.max(min, Math.min(max, v));

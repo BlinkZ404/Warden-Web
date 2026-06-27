@@ -32,9 +32,11 @@ export function actorLabel(actor: string): string {
  if (actor.startsWith("system:")) {
  return actor.slice(7) === "auto-approve" ? "Autopilot" : "Warden";
  }
- const b = BRANDS[actor.toLowerCase()];
+ // A panel member is "<provider>:<n>" for uniqueness; key the brand off the provider.
+ const key = actor.toLowerCase().split(":")[0];
+ const b = BRANDS[key];
  if (b) return b.label;
- return actor.charAt(0).toUpperCase() + actor.slice(1);
+ return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 /** A brand logo for an actor, falling back to a coloured letter chip. */
