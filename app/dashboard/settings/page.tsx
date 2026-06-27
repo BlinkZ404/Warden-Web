@@ -8,9 +8,8 @@ import { Icon } from "@/app/_components/icons";
 
 export default function SettingsPage() {
  const { text, set, save, saving, error } = useSettings();
- const [pulling, setPulling] = useState(false);
+ const [savingRepo, setSavingRepo] = useState(false);
  const [saved, setSaved] = useState(false);
- const [repoErr, setRepoErr] = useState<string | null>(null);
  const [repos, setRepos] = useState<{ full_name: string; private: boolean }[]>([]);
 
  // When GitHub is connected, list the account's repos for the picker; the manual
@@ -23,19 +22,13 @@ export default function SettingsPage() {
  }, []);
 
  async function saveRepo() {
- setPulling(true);
- setRepoErr(null);
+ setSavingRepo(true);
  setSaved(false);
- try {
  // Just persist the URL. The worker clones the repo on the first incident;
  // cloning needs git + a real filesystem, which the serverless app lacks.
- await save("repo", ["TARGET_REPO_URL"]);
- setSaved(true);
- } catch {
- setRepoErr("Couldn't save. Try again.");
- } finally {
- setPulling(false);
- }
+ const ok = await save("repo", ["TARGET_REPO_URL"]);
+ setSaved(ok);
+ setSavingRepo(false);
  }
 
  return (
@@ -96,18 +89,14 @@ export default function SettingsPage() {
  />
  </Row>
  <div className="flex flex-wrap items-center gap-3 pt-1">
- <Button variant="secondary" size="sm" onClick={saveRepo} disabled={pulling}>
- {pulling ? "Saving…" : "Save repository"}
+ <Button variant="secondary" size="sm" onClick={saveRepo} disabled={savingRepo}>
+ {savingRepo ? "Saving…" : "Save repository"}
  </Button>
  {saved && (
  <span className="font-mono text-[11px] text-[var(--color-ok)]">
  ✓ Saved. Warden clones it on the first incident.
  </span>
- )}
- {repoErr && (
- <span className="font-mono text-[11px] text-[var(--color-bad)]">{repoErr}</span>
- )}
- </div>
+ )} </div>
  </Section>
 
  <Section

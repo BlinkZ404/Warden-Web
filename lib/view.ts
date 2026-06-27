@@ -89,9 +89,13 @@ export async function listIncidentRows(limit = 100): Promise<IncidentRow[]> {
     [ids],
   );
   const tests = await query<{ incident_id: string; test_passed: boolean }>(
-    `SELECT DISTINCT ON (fa.incident_id) fa.incident_id, v.test_passed
-     FROM fix_attempts fa JOIN verifications v ON v.fix_attempt_id = fa.id
-     WHERE fa.incident_id = ANY($1)
+    `WITH latest_fa AS (
+       SELECT DISTINCT ON (incident_id) id, incident_id
+       FROM fix_attempts WHERE incident_id = ANY($1)
+       ORDER BY incident_id, created_at DESC
+     )
+     SELECT DISTINCT ON (fa.incident_id) fa.incident_id, v.test_passed
+     FROM latest_fa fa JOIN verifications v ON v.fix_attempt_id = fa.id
      ORDER BY fa.incident_id, v.checked_at DESC`,
     [ids],
   );

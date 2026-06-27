@@ -33,7 +33,7 @@ export function useSettings() {
  : { set: false, hint: "" };
  };
 
- async function save(section: string, keys: string[]) {
+ async function save(section: string, keys: string[]): Promise<boolean> {
  setSaving(section);
  setError(null);
  const body: Record<string, string> = {};
@@ -44,10 +44,11 @@ export function useSettings() {
  headers: { "content-type": "application/json" },
  body: JSON.stringify(body),
  });
- // fetch resolves on 4xx/5xx, so a failed save must not clear the draft; // otherwise the user's typed key is discarded with nothing persisted.
+ // fetch resolves on 4xx/5xx, so a failed save must not clear the draft;
+ // otherwise the user's typed key is discarded with nothing persisted.
  if (!r.ok) {
  setError(`Could not save (${r.status}). Your changes are kept; try again.`);
- return;
+ return false;
  }
  setDraft((d) => {
  const n = { ...d };
@@ -55,8 +56,10 @@ export function useSettings() {
  return n;
  });
  await reload();
+ return true;
  } catch {
  setError("Could not save. Check your connection and try again.");
+ return false;
  } finally {
  setSaving(null);
  }
