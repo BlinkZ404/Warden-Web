@@ -12,9 +12,11 @@ import {
   reproduceCall,
   diffStat,
   fileHistory,
+  findFilesContaining,
   destroyWorkspace,
 } from "@/lib/adapters/workspace";
 import { getBugByKey } from "@/lib/sim/bugs";
+import { errorSymbol } from "@/lib/agents/fixer";
 
 /**
  * This proves the *real* part of simulation mode: injecting a seeded bug makes
@@ -126,5 +128,35 @@ describe("workspace adapter: real inject/fix/verify", () => {
     expect(noTests.code).toBe(0); // node --test exits 0 even with zero tests…
     expect(noTests.testsRun).toBe(0); // …but we detect that nothing ran
     await rm(empty, { recursive: true, force: true });
+  });
+});
+
+/**
+ * The fixer pins the bug from the repo it cloned rather than trusting a (source-
+ * mapped, possibly inlined) frame path: pull a distinctive symbol from the error,
+ * then grep the workspace for the file that actually holds it.
+ */
+describe("culprit confirmation from the cloned repo", () => {
+  it("errorSymbol extracts the missing symbol from common runtime errors", () => {
+    expect(errorSymbol("TypeError: n.trim(...).toLowerCasee is not a function")).toBe(
+      "toLowerCasee",
+    );
+    expect(errorSymbol("ReferenceError: computeTotal is not defined")).toBe("computeTotal");
+    expect(errorSymbol("TypeError: Cannot read properties of undefined (reading 'price')")).toBe(
+      "price",
+    );
+    expect(errorSymbol("RangeError: invalid array length")).toBeUndefined();
+  });
+
+  it("findFilesContaining locates the bug file by its distinctive symbol", async () => {
+    const bug = getBugByKey("signin-email-typo")!;
+    const id = "wstest-grep";
+    const ws = await prepareWorkspace(id, bug);
+    // The injected production state holds the typo'd method; grep finds its file,
+    // even though the Sentry frame would point at the route that calls it.
+    expect(await findFilesContaining(ws.root, "toLowerCasee")).toContain(bug.culpritFile);
+    // A symbol absent from the repo yields nothing (caller falls back to the path).
+    expect(await findFilesContaining(ws.root, "zzzNoSuchSymbolZzz")).toEqual([]);
+    await destroyWorkspace(id);
   });
 });

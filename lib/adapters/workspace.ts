@@ -46,6 +46,36 @@ async function git(root: string, args: string[]): Promise<string> {
   return stdout.trim();
 }
 
+/**
+ * Tracked source files that literally contain `needle`. Lets a caller pin a bug to
+ * a file we actually cloned, by a distinctive symbol from the error (e.g. a typo'd
+ * method name), instead of trusting a source-mapped or inlined frame path. Returns
+ * an empty list when nothing matches.
+ */
+export async function findFilesContaining(root: string, needle: string): Promise<string[]> {
+  try {
+    const out = await git(root, [
+      "grep",
+      "-lI",
+      "-F",
+      needle,
+      "--",
+      "*.ts",
+      "*.tsx",
+      "*.js",
+      "*.jsx",
+      "*.mjs",
+      "*.cjs",
+    ]);
+    return out
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+  } catch {
+    return []; // git grep exits non-zero when nothing matches
+  }
+}
+
 async function gitInit(root: string) {
   await git(root, ["init", "-b", "main"]);
   await git(root, ["config", "user.email", "ci@warden.dev"]);

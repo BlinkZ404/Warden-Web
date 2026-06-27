@@ -5,7 +5,13 @@ import { extractJson, anthropicText } from "@/lib/agents/json";
 import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
-import { createBranch, applyEdit, commitAll, gatherCallerContext } from "@/lib/adapters/workspace";
+import {
+  createBranch,
+  applyEdit,
+  commitAll,
+  gatherCallerContext,
+  findFilesContaining,
+} from "@/lib/adapters/workspace";
 import { isLiveRuntime, assignedProvider, assignedModelId } from "@/lib/runtime-config";
 import type { Fixer, FixerContext, FixProposal } from "@/lib/agents/types";
 
@@ -24,33 +30,70 @@ async function isFile(p: string): Promise<boolean> {
 }
 
 /**
- * Resolve a culprit path to a real file in the workspace. A Sentry stack frame for
- * a TS app reports the COMPILED path (e.g. `lib/auth/normalizeEmail.js`) while the
- * repo only has the `.ts` source, and model output often drops the extension
- * entirely. So strip any extension and try the path as-is, the same base under
- * each source extension, then an `index` file, before giving up.
+ * A distinctive identifier from a runtime error: the missing method or symbol that
+ * pins the bug, e.g. `toLowerCasee` from "x.toLowerCasee is not a function". Used to
+ * locate the file that actually holds the bug in the cloned repo.
+ */
+export function errorSymbol(text: string): string | undefined {
+  const m =
+    text.match(/([A-Za-z_$][\w$]{2,})\s+is not a function/) ??
+    text.match(/([A-Za-z_$][\w$]{2,})\s+is not defined/) ??
+    text.match(/reading '([A-Za-z_$][\w$]{2,})'/) ??
+    text.match(/has no method '([A-Za-z_$][\w$]{2,})'/);
+  return m?.[1];
+}
+
+/**
+ * Resolve a frame path to a real file in the cloned repo. The path is only a hint:
+ * a Sentry frame reports the COMPILED path (`…/normalizeEmail.js`) while the repo
+ * has the `.ts` source, model output drops the extension, and source maps can add a
+ * stray prefix (`src/`) or a package dir. So try the path as-is, the same base under
+ * each source extension and as an `index` file, then drop leading segments and retry
+ * — the deepest real match wins.
  */
 async function resolveCulprit(
   workspaceRoot: string,
   file: string,
 ): Promise<{ file: string; path: string }> {
-  const base = file.replace(/\.[a-z0-9]+$/i, "");
-  const candidates = [
-    file,
-    ...SRC_EXTS.map((e) => `${base}${e}`),
-    ...SRC_EXTS.map((e) => `${base}/index${e}`),
-  ];
-  for (const c of candidates) {
-    if (await isFile(join(workspaceRoot, c))) return { file: c, path: join(workspaceRoot, c) };
+  const tryPath = async (p: string): Promise<string | null> => {
+    const base = p.replace(/\.[a-z0-9]+$/i, "");
+    const candidates = [
+      p,
+      ...SRC_EXTS.map((e) => `${base}${e}`),
+      ...SRC_EXTS.map((e) => `${base}/index${e}`),
+    ];
+    for (const c of candidates) {
+      if (await isFile(join(workspaceRoot, c))) return c;
+    }
+    return null;
+  };
+  const segs = file.split("/");
+  for (let i = 0; i < segs.length; i++) {
+    const hit = await tryPath(segs.slice(i).join("/"));
+    if (hit) return { file: hit, path: join(workspaceRoot, hit) };
   }
   return { file, path: join(workspaceRoot, file) };
 }
 
+/**
+ * Find the file to fix. We cloned the whole repo, so confirm the bug location from a
+ * distinctive error symbol (a file we actually have that contains it) rather than
+ * trusting the frame path, which often points at an inlined call site instead of the
+ * file holding the bug. Fall back to resolving the frame path when there's no usable
+ * symbol or it matches too many files to pin one.
+ */
 async function culprit(ctx: FixerContext): Promise<{ file: string; path: string }> {
-  const file =
-    (ctx.investigation.context as { culpritFile?: string } | null)?.culpritFile ??
-    "src/index.js";
-  return resolveCulprit(ctx.workspaceRoot, file);
+  const hinted =
+    (ctx.investigation.context as { culpritFile?: string } | null)?.culpritFile ?? null;
+  const symbol = errorSymbol(`${ctx.incident.title ?? ""} ${ctx.investigation.root_cause ?? ""}`);
+  if (symbol) {
+    const hits = await findFilesContaining(ctx.workspaceRoot, symbol);
+    if (hits.length > 0 && hits.length <= 4) {
+      const file = hits.find((h) => hinted?.endsWith(h)) ?? hits[0];
+      return { file, path: join(ctx.workspaceRoot, file) };
+    }
+  }
+  return resolveCulprit(ctx.workspaceRoot, hinted ?? "src/index.js");
 }
 
 /** Write the rewritten file on a new branch and commit it (no merge, no deploy). */
