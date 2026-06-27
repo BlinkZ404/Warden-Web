@@ -62,6 +62,11 @@ export function assignedProvider(roleKey: string): CompatProvider | null {
  return { baseUrl: provider.baseUrl, apiKey, model: a.id };
 }
 
+/** The provider id (brand key) behind a role assignment, for display + attribution. */
+export function assignedPid(roleKey: string): string | null {
+ return parseAssignment(setting(roleKey))?.pid ?? null;
+}
+
 /** The reviewer panel from the saved REVIEWER_1/2/3 assignments (configured only). */
 export function assignedReviewers(): CompatProvider[] {
  return [1, 2, 3]

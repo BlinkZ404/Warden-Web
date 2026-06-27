@@ -246,7 +246,7 @@ async function stepInvestigating(incident: Incident) {
     "Isolated git workspace prepared (production state reproduced).",
   );
 
-  await transition(incident.id, "fix_proposed", "claude", {
+  await transition(incident.id, "fix_proposed", "system", {
     confidence: inv.confidence,
   });
 }
@@ -293,7 +293,7 @@ async function stepFixProposed(incident: Incident) {
       ...(revision ? { revisionOf: revision.attempt } : {}),
     });
   }
-  await transition(incident.id, "under_review", "claude");
+  await transition(incident.id, "under_review", "system");
 }
 
 async function stepUnderReview(incident: Incident) {
@@ -386,7 +386,7 @@ async function stepUnderReview(incident: Incident) {
         reason: "reviewer flagged an over-scoped fix; re-proposing with the feedback",
         notes: fb.notes,
       });
-      await transition(incident.id, "fix_proposed", "claude", { revision: attempts });
+      await transition(incident.id, "fix_proposed", "system", { revision: attempts });
       return;
     }
     await transition(incident.id, "escalated", "system", {

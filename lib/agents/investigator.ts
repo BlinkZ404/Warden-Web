@@ -4,7 +4,7 @@ import { extractJson, anthropicText } from "@/lib/agents/json";
 import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
-import { isLiveRuntime, assignedProvider } from "@/lib/runtime-config";
+import { isLiveRuntime, assignedProvider, assignedPid } from "@/lib/runtime-config";
 import type { Incident } from "@/lib/db/types";
 import type { Investigator, InvestigationResult, SentryContext } from "@/lib/agents/types";
 
@@ -82,9 +82,9 @@ function toResult(
 
 /** Any OpenAI-compatible provider (DeepSeek, GLM, OpenAI, …); the provider is
  * resolved from the dashboard assignment or env config by the factory below. */
-function makeCompatInvestigator(provider: CompatProvider): Investigator {
+function makeCompatInvestigator(provider: CompatProvider, name = "agent"): Investigator {
   return {
-    name: "agent",
+    name,
     async investigate(incident, sentry): Promise<InvestigationResult> {
       const ctx = await readOnlyContext(incident);
       const parsed = await chatJson<InvJson>(provider, INV_SYSTEM, invUser(incident, sentry));
@@ -120,7 +120,7 @@ const liveInvestigator: Investigator = {
 export function getInvestigator(): Investigator {
   if (!(config.isLive || isLiveRuntime())) return simInvestigator;
   const assigned = assignedProvider("INVESTIGATOR_MODEL");
-  if (assigned) return makeCompatInvestigator(assigned);
+  if (assigned) return makeCompatInvestigator(assigned, assignedPid("INVESTIGATOR_MODEL") ?? "agent");
   if (isConfigured(investigatorProvider())) return makeCompatInvestigator(investigatorProvider());
   if (config.agents.anthropicApiKey) return liveInvestigator;
   return simInvestigator;
