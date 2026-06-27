@@ -7,7 +7,7 @@
 import { recordApproval, ApprovalStateError } from "@/lib/approval";
 import { drainJobs, shouldDrainInline } from "@/lib/orchestrator/runner";
 import { getIncident } from "@/lib/repo/incidents";
-import { checkApiSecret } from "@/lib/auth/api-auth";
+import { checkOperator } from "@/lib/auth/api-auth";
 import { sessionActor } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -20,7 +20,7 @@ export async function POST(
  // back to the shared-secret gate (scripted / operator / cron calls).
  const approver = await sessionActor();
  if (!approver) {
- const denied = checkApiSecret(req);
+ const denied = checkOperator(req);
  if (denied) return denied;
  }
  const { id } = await params;

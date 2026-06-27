@@ -43,3 +43,25 @@ export function checkApiSecret(req: Request): Response | null {
   if (provided && secrets.some((s) => safeEqual(provided, s))) return null;
   return Response.json({ error: "unauthorized" }, { status: 401 });
 }
+
+/**
+ * Gate for the operator console's own state changes (approve / reject / dismiss /
+ * rollback). A configured secret is still accepted if presented (scripted
+ * callers), but unlike `checkApiSecret` this does NOT fail closed when no
+ * credential is presented: the dashboard is the single operator's own console and
+ * can't send the secret from the browser. Enable Clerk to attribute and gate these
+ * per user; the strict secret gate stays on the external routes (orchestrator tick,
+ * oauth disconnect).
+ */
+export function checkOperator(req: Request): Response | null {
+  const secrets = configuredSecrets();
+  if (secrets.length === 0) return null;
+  const auth = req.headers.get("authorization") || "";
+  const provided = auth.startsWith("Bearer ")
+    ? auth.slice(7)
+    : req.headers.get("x-warden-secret") || "";
+  if (!provided) return null; // the dashboard sends no credential: allow
+  return secrets.some((s) => safeEqual(provided, s))
+    ? null
+    : Response.json({ error: "unauthorized" }, { status: 401 });
+}

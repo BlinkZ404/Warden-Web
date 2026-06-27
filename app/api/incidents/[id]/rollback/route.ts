@@ -3,7 +3,7 @@
  * Reuses the same Vercel instant-rollback adapter as the automatic path.
  */
 import { recordRevert, RevertStateError } from "@/lib/revert";
-import { checkApiSecret } from "@/lib/auth/api-auth";
+import { checkOperator } from "@/lib/auth/api-auth";
 import { sessionActor } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ export async function POST(
  // otherwise the shared-secret path covers scripted / operator calls.
  const actor = await sessionActor();
  if (!actor) {
- const denied = checkApiSecret(req);
+ const denied = checkOperator(req);
  if (denied) return denied;
  }
  const { id } = await params;

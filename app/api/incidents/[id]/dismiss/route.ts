@@ -6,7 +6,7 @@
  */
 import { transition, canTransition } from "@/lib/statemachine";
 import { getIncident } from "@/lib/repo/incidents";
-import { checkApiSecret } from "@/lib/auth/api-auth";
+import { checkOperator } from "@/lib/auth/api-auth";
 import { sessionActor } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = await sessionActor();
   if (!actor) {
-    const denied = checkApiSecret(req);
+    const denied = checkOperator(req);
     if (denied) return denied;
   }
   const { id } = await params;
