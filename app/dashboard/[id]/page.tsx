@@ -26,6 +26,7 @@ import { AuditTable } from "@/app/_components/audit-table";
 import { reproPair, fixCostUsd, blastRadius, memoryMatches } from "@/lib/incident-derive";
 import { classifyReversibility } from "@/lib/policy/reversibility";
 import { usd } from "@/lib/pricing";
+import { canTransition } from "@/lib/statemachine/transitions";
 
 export default function IncidentDetail() {
  const { id } = useParams<{ id: string }>();
@@ -73,6 +74,16 @@ export default function IncidentDetail() {
  headers: { "content-type": "application/json" },
  body: JSON.stringify({ decidedBy: "founder" }),
  });
+ await load();
+ } finally {
+ setBusy(false);
+ }
+ }
+
+ async function dismiss() {
+ setBusy(true);
+ try {
+ await fetch(`/api/incidents/${id}/dismiss`, { method: "POST" });
  await load();
  } finally {
  setBusy(false);
@@ -263,6 +274,15 @@ export default function IncidentDetail() {
  <ExternalLink href={`/report/${id}`} className="font-mono text-[11px]">
  fix report ↗
  </ExternalLink>
+ )}
+ {canTransition(incident.status, "dismissed") && (
+ <button
+ onClick={dismiss}
+ disabled={busy}
+ className="font-mono text-[11px] uppercase tracking-wider text-[var(--color-muted)] transition hover:text-[var(--color-bad)] disabled:opacity-50"
+ >
+ dismiss
+ </button>
  )}
  <StatusBadge status={incident.status} />
  </>

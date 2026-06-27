@@ -52,7 +52,7 @@ const KNOWN = ["metrics", "audit", "security", "keys", "settings", "usage"];
 
 function BrandMark() {
  return (
- <Link href="/" className="flex items-center border-b border-[var(--color-line)] px-5 py-4">
+ <Link href="/" className="flex items-center justify-center border-b border-[var(--color-line)] px-5 py-4">
  <Wordmark className="h-4 w-auto" />
  </Link>
  );
