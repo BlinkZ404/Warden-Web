@@ -203,6 +203,13 @@ export default function IncidentDetail() {
  </div>
  ),
  });
+ // "original error stopped" and the before/after theater are EXECUTION claims:
+ // show them only when a reproduction actually ran (the sim path). A live target
+ // verified by its regression suite was never re-run, so claiming the error
+ // "stopped" would overstate what we checked.
+ const reproRan = events.some(
+ (e) => e.type === "verification" && !!(e.payload as { repro_checked?: boolean }).repro_checked,
+ );
  if (verification)
  arts.push({
  key: "ver",
@@ -213,18 +220,15 @@ export default function IncidentDetail() {
  <>
  <div className="space-y-1.5 font-mono text-sm">
  <Check ok={!!verification.test_passed} label="tests pass" />
+ {reproRan && (
  <Check ok={!verification.error_recurred} label="original error stopped" />
+ )}
  <Check
  ok={!(verification.new_errors as unknown[] | null)?.length}
  label="no new errors detected"
  />
  </div>
- <ReproTheater pair={reproPair(events)} />
- {verification.preview_url && (
- <div className="mt-3 border-t border-[var(--color-line)] pt-2.5">
- <Field label="preview" value={verification.preview_url} accent />
- </div>
- )}
+ {reproRan && <ReproTheater pair={reproPair(events)} />}
  </>
  ),
  });
@@ -250,6 +254,9 @@ export default function IncidentDetail() {
  ),
  });
  }
+ const deliveredPr = events.find(
+ (e) => e.type === "deploy" && !!(e.payload as { delivered?: boolean }).delivered,
+ )?.payload as { prUrl?: string } | undefined;
  if (outcome)
  arts.push({
  key: "out",
@@ -259,6 +266,16 @@ export default function IncidentDetail() {
  <>
  <Field label="resolved" value={String(outcome.resolved)} />
  <Field label="type" value={outcome.resolution_type ?? "—"} />
+ {deliveredPr?.prUrl && (
+ <a
+ href={deliveredPr.prUrl}
+ target="_blank"
+ rel="noreferrer"
+ className="mt-2 inline-block break-all font-mono text-xs text-[var(--color-accent)] underline underline-offset-2"
+ >
+ {deliveredPr.prUrl}
+ </a>
+ )}
  {outcome.notes && (
  <p className="mt-2 text-xs leading-relaxed text-[var(--color-muted)]">{outcome.notes}</p>
  )}

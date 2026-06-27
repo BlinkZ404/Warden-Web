@@ -46,6 +46,16 @@ export function isLiveRuntime(): boolean {
  return effectiveMode() === "live";
 }
 
+/** Identity for the fix commit. Defaults to a bot, but set GIT_AUTHOR_EMAIL to a
+ *  real GitHub-account email so a delivered PR's Vercel (and similar) checks
+ *  recognize the commit author instead of refusing to build it. */
+export function gitAuthor(): { email: string; name: string } {
+ return {
+ email: setting("GIT_AUTHOR_EMAIL", "ci@warden.dev"),
+ name: setting("GIT_AUTHOR_NAME", "Warden"),
+ };
+}
+
 /**
  * Resolve a role's `"<providerId>::<modelId>"` assignment plus that provider's
  * saved API key into an OpenAI-compatible provider. Returns null when the role

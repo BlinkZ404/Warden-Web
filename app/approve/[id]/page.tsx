@@ -81,6 +81,11 @@ export default function Approve() {
  const rev = fixAttempt
  ? classifyReversibility((fixAttempt.files_changed as string[] | null) ?? [])
  : null;
+ // "The error is gone" is an execution claim, only honest when a reproduction
+ // actually ran (the sim path); a regression-verified live fix was never re-run.
+ const reproRan = bundle.events.some(
+ (e) => e.type === "verification" && !!(e.payload as { repro_checked?: boolean }).repro_checked,
+ );
 
  return (
  <main className="mx-auto flex min-h-screen max-w-md flex-col gap-5 px-5 py-8">
@@ -105,10 +110,10 @@ export default function Approve() {
  {verification && (
  <div className="rounded-2xl border border-[var(--color-line)] bg-[var(--color-panel)] p-5">
  <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
- Tested on a preview
+ Automated checks
  </p>
  <Row ok={!!verification.test_passed} label="All tests pass" />
- <Row ok={!verification.error_recurred} label="The error is gone" />
+ {reproRan && <Row ok={!verification.error_recurred} label="The error is gone" />}
  <Row ok={!((verification.new_errors as unknown[] | null)?.length)} label="No new errors detected" />
  </div>
  )}

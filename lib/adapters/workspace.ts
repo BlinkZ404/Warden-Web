@@ -20,6 +20,7 @@ import { promisify } from "node:util";
 import { cp, mkdir, readFile, writeFile, rm, access } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ensureTargetRepo, targetRepoUrl } from "@/lib/adapters/github-repo";
+import { gitAuthor } from "@/lib/runtime-config";
 import type { CodeEdit, SeededBug } from "@/lib/sim/bugs";
 
 const pexec = promisify(execFile);
@@ -77,9 +78,10 @@ export async function findFilesContaining(root: string, needle: string): Promise
 }
 
 async function gitInit(root: string) {
+  const author = gitAuthor();
   await git(root, ["init", "-b", "main"]);
-  await git(root, ["config", "user.email", "ci@warden.dev"]);
-  await git(root, ["config", "user.name", "checkout-service ci"]);
+  await git(root, ["config", "user.email", author.email]);
+  await git(root, ["config", "user.name", author.name]);
   await git(root, ["config", "commit.gpgsign", "false"]);
 }
 
@@ -111,8 +113,9 @@ export async function prepareWorkspace(
       recursive: true,
       filter: (src) => !/[\\/](node_modules|\.next)([\\/]|$)/.test(src),
     });
-    await git(root, ["config", "user.email", "ci@warden.dev"]);
-    await git(root, ["config", "user.name", "warden"]);
+    const author = gitAuthor();
+    await git(root, ["config", "user.email", author.email]);
+    await git(root, ["config", "user.name", author.name]);
     await git(root, ["config", "commit.gpgsign", "false"]);
     return { incidentId, root };
   }

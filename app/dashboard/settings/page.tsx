@@ -26,7 +26,7 @@ export default function SettingsPage() {
  setSaved(false);
  // Just persist the URL. The worker clones the repo on the first incident;
  // cloning needs git + a real filesystem, which the serverless app lacks.
- const ok = await save("repo", ["TARGET_REPO_URL"]);
+ const ok = await save("repo", ["TARGET_REPO_URL", "GIT_AUTHOR_EMAIL"]);
  setSaved(ok);
  setSavingRepo(false);
  }
@@ -85,6 +85,19 @@ export default function SettingsPage() {
  placeholder="acme/checkout-service"
  value={text("TARGET_REPO_URL")}
  onChange={(e) => set("TARGET_REPO_URL", e.target.value)}
+ className={`${FIELD} w-full sm:w-72`}
+ />
+ </Row>
+ <Row
+ label="Commit author email"
+ hint="Warden authors the fix commit with this. Use an email on your GitHub account so a delivered PR's Vercel/preview checks recognize the author. Defaults to a bot identity."
+ >
+ <input
+ type="text"
+ spellCheck={false}
+ placeholder="you@users.noreply.github.com"
+ value={text("GIT_AUTHOR_EMAIL")}
+ onChange={(e) => set("GIT_AUTHOR_EMAIL", e.target.value)}
  className={`${FIELD} w-full sm:w-72`}
  />
  </Row>

@@ -38,6 +38,9 @@ export default function ReportPage() {
  const { incident, investigation, fixAttempt, reviews, verification, deployment, outcome, events } =
  b;
  const pair = reproPair(events);
+ const reproRan = events.some(
+ (e) => e.type === "verification" && !!(e.payload as { repro_checked?: boolean }).repro_checked,
+ );
  const cost = fixCostUsd(events);
  const blast = blastRadius(fixAttempt, verification);
  const approvals = reviews.filter((r) => r.verdict === "approve").length;
@@ -98,10 +101,10 @@ export default function ReportPage() {
  <Frame className="mt-2.5" innerClassName="p-5">
  <div className="space-y-1.5 font-mono text-sm">
  <Proof ok={!!verification?.test_passed} label="tests pass" />
- <Proof ok={!verification?.error_recurred} label="original error stopped" />
+ {reproRan && <Proof ok={!verification?.error_recurred} label="original error stopped" />}
  <Proof ok={blast.smokeClean} label="no new errors detected" />
  </div>
- <ReproTheater pair={pair} />
+ {reproRan && <ReproTheater pair={pair} />}
  </Frame>
  </div>
 
