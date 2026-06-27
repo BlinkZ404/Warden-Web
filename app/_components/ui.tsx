@@ -61,13 +61,11 @@ export function PipelineBar({ status }: { status: IncidentStatus }) {
  />
  )}
  <div
- className="relative z-10 h-2.5 w-2.5 rounded-full transition"
+ className={`relative z-10 h-2.5 w-2.5 rounded-full transition ${active ? "wd-step-pulse" : ""}`}
  style={{
  background: done || active ? color : "var(--color-panel)",
  border: `1.5px solid ${color}`,
- boxShadow: active
- ? `0 0 0 4px color-mix(in srgb, ${color} 22%, transparent)`
- : "none",
+ boxShadow: active ? undefined : "none",
  }}
  />
  <span

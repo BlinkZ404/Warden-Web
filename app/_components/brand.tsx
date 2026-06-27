@@ -19,8 +19,8 @@ const BRANDS: Record<string, { domain?: string; label: string; color: string }> 
  vercel: { domain: "vercel.com", label: "Vercel", color: "#e7eaf0" },
  slack: { domain: "slack.com", label: "Slack", color: "#e01e5a" },
  github: { domain: "github.com", label: "GitHub", color: "#e7eaf0" },
- system: { label: "System", color: "#5c6795" },
- "demo-script": { label: "System", color: "#5c6795" },
+ system: { label: "Warden", color: "#5c6795" },
+ "demo-script": { label: "Warden", color: "#5c6795" },
 };
 
 /** Display name for an event actor (`human:founder` → `Founder`, etc.). */
@@ -30,7 +30,7 @@ export function actorLabel(actor: string): string {
  return n ? n.charAt(0).toUpperCase() + n.slice(1) : "Human";
  }
  if (actor.startsWith("system:")) {
- return actor.slice(7) === "auto-approve" ? "Autopilot" : "System";
+ return actor.slice(7) === "auto-approve" ? "Autopilot" : "Warden";
  }
  const b = BRANDS[actor.toLowerCase()];
  if (b) return b.label;
@@ -44,6 +44,14 @@ export function Brand({ actor, size = 16 }: { actor: string; size?: number }) {
  const [err, setErr] = useState(false);
  const label = actorLabel(actor);
  const color = brand?.color ?? "#5c6795";
+
+ // Warden's own actions (the orchestrator / worker) carry our app icon, not a favicon.
+ if (key === "system" || key === "demo-script") {
+ return (
+ // eslint-disable-next-line @next/next/no-img-element
+ <img src="/icon.png" width={size} height={size} alt={label} className="rounded-[3px]" />
+ );
+ }
 
  if (brand?.domain && !err) {
  return (

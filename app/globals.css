@@ -71,6 +71,19 @@ input[type="number"]::-webkit-inner-spin-button {
  margin: 0;
 }
 
+/* The active pipeline step breathes so a long-running stage never reads as stuck. */
+@keyframes wd-step-pulse {
+ 0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 30%, transparent); }
+ 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--color-accent) 6%, transparent); }
+}
+.wd-step-pulse { animation: wd-step-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+ .wd-step-pulse {
+ animation: none;
+ box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+ }
+}
+
 /* ───────────────────────────────────────────────────────────────────────────
  Cinematic landing hero. Pure CSS (transform/opacity/filter) so the page stays
  a zero-JS server component. Honors prefers-reduced-motion.
