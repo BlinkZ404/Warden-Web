@@ -62,28 +62,11 @@ export function assignedProvider(roleKey: string): CompatProvider | null {
  return { baseUrl: provider.baseUrl, apiKey, model: a.id };
 }
 
-/** The provider id (brand key) behind a role assignment, for display + attribution. */
-export function assignedPid(roleKey: string): string | null {
- return parseAssignment(setting(roleKey))?.pid ?? null;
-}
-
 /** The reviewer panel from the saved REVIEWER_1/2/3 assignments (configured only). */
 export function assignedReviewers(): CompatProvider[] {
  return [1, 2, 3]
  .map((n) => assignedProvider(`REVIEWER_${n}_MODEL`))
  .filter((p): p is CompatProvider => p != null);
-}
-
-/** The reviewer panel with each slot's provider id, for branded attribution. */
-export function assignedReviewerSlots(): { provider: CompatProvider; pid: string }[] {
- return [1, 2, 3]
- .map((n) => {
- const key = `REVIEWER_${n}_MODEL`;
- const provider = assignedProvider(key);
- const pid = assignedPid(key);
- return provider && pid ? { provider, pid } : null;
- })
- .filter((s): s is { provider: CompatProvider; pid: string } => s != null);
 }
 
 function intIn(raw: string, def: number, min: number, max: number): number {

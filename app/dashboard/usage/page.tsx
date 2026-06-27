@@ -144,7 +144,7 @@ export default function UsagePage() {
                     <span className="text-[var(--color-muted)]">{r.label}</span>
                     {a ? (
                       <span className="flex items-center gap-2 font-mono text-[var(--color-text)]">
-                        <Brand actor={a.pid} size={14} />
+                        <Brand actor={a.id} size={14} />
                         {a.label}
                       </span>
                     ) : (

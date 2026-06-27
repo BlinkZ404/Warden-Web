@@ -27,6 +27,7 @@ import { reproPair, fixCostUsd, blastRadius, memoryMatches } from "@/lib/inciden
 import { classifyReversibility } from "@/lib/policy/reversibility";
 import { usd } from "@/lib/pricing";
 import { canTransition } from "@/lib/statemachine/transitions";
+import { actorLabel } from "@/app/_components/brand";
 
 export default function IncidentDetail() {
  const { id } = useParams<{ id: string }>();
@@ -101,6 +102,9 @@ export default function IncidentDetail() {
  const rev = classifyReversibility(blast.files);
  const cost = fixCostUsd(events);
  const memory = memoryMatches(events);
+ const invActor = events.find(
+ (e) => e.type === "agent_action" && (e.payload as { action?: string } | null)?.action === "investigated",
+ )?.actor;
 
  const arts: { key: string; icon: string; title: string; aside?: string; body: ReactNode }[] = [];
  if (memory.length > 0)
@@ -136,7 +140,7 @@ export default function IncidentDetail() {
  key: "inv",
  icon: "search",
  title: "Investigation",
- aside: "claude",
+ aside: invActor ? actorLabel(invActor) : undefined,
  body: (
  <>
  <p className="text-sm leading-relaxed">{investigation.root_cause}</p>
@@ -155,7 +159,7 @@ export default function IncidentDetail() {
  key: "fix",
  icon: "code",
  title: "Fix proposed",
- aside: fixAttempt.agent,
+ aside: actorLabel(fixAttempt.agent),
  body: (
  <>
  <p className="text-sm leading-relaxed">{fixAttempt.diff_summary}</p>

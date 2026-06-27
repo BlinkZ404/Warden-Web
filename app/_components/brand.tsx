@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { brandKeyForModelId, labelForModelId } from "@/lib/models";
 
 const BRANDS: Record<string, { domain?: string; label: string; color: string }> = {
  claude: { domain: "anthropic.com", label: "Claude", color: "#d97757" },
@@ -32,28 +33,33 @@ export function actorLabel(actor: string): string {
  if (actor.startsWith("system:")) {
  return actor.slice(7) === "auto-approve" ? "Autopilot" : "Warden";
  }
- // A panel member is "<provider>:<n>" for uniqueness; key the brand off the provider.
- const key = actor.toLowerCase().split(":")[0];
- const b = BRANDS[key];
- if (b) return b.label;
- return key.charAt(0).toUpperCase() + key.slice(1);
+ // Panel members carry a "#n" suffix for uniqueness; strip it. A model id
+ // ("lab/model") resolves to its model name; otherwise the actor is a brand key.
+ const base = actor.split("#")[0];
+ if (base.includes("/")) return labelForModelId(base);
+ const key = base.toLowerCase().split(":")[0];
+ return BRANDS[key]?.label ?? key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 /** A brand logo for an actor, falling back to a coloured letter chip. */
 export function Brand({ actor, size = 16 }: { actor: string; size?: number }) {
- const key = actor.toLowerCase().split(":")[0];
- const brand = BRANDS[key];
+ const base = actor.split("#")[0];
+ const baseKey = base.toLowerCase().split(":")[0];
  const [err, setErr] = useState(false);
  const label = actorLabel(actor);
- const color = brand?.color ?? "#5c6795";
 
  // Warden's own actions (the orchestrator / worker) carry our app icon, not a favicon.
- if (key === "system" || key === "demo-script") {
+ if (baseKey === "system" || baseKey === "demo-script") {
  return (
  // eslint-disable-next-line @next/next/no-img-element
  <img src="/icon.png" width={size} height={size} alt={label} className="rounded-[3px]" />
  );
  }
+
+ // A model id resolves to its lab's brand; otherwise the actor is itself a brand key.
+ const key = base.includes("/") ? brandKeyForModelId(base) : baseKey;
+ const brand = BRANDS[key];
+ const color = brand?.color ?? "#5c6795";
 
  if (brand?.domain && !err) {
  return (

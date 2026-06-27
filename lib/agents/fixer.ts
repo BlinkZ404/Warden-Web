@@ -6,7 +6,7 @@ import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 import { createBranch, applyEdit, commitAll, gatherCallerContext } from "@/lib/adapters/workspace";
-import { isLiveRuntime, assignedProvider, assignedPid } from "@/lib/runtime-config";
+import { isLiveRuntime, assignedProvider } from "@/lib/runtime-config";
 import type { Fixer, FixerContext, FixProposal } from "@/lib/agents/types";
 
 function branchName(incidentId: string): string {
@@ -142,7 +142,7 @@ export function getFixer(): Fixer {
   // → native Anthropic → simulation.
   if (!(config.isLive || isLiveRuntime())) return simFixer;
   const assigned = assignedProvider("FIXER_MODEL");
-  if (assigned) return makeCompatFixer(assigned, assignedPid("FIXER_MODEL") ?? "agent");
+  if (assigned) return makeCompatFixer(assigned, assigned.model);
   if (isConfigured(config.agents.fixer)) return makeCompatFixer(config.agents.fixer);
   if (config.agents.anthropicApiKey) return liveFixer;
   return simFixer;

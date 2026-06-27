@@ -203,3 +203,29 @@ export function parseAssignment(value: unknown): { pid: string; id: string; labe
  // `||` not `??`: a separator-less value yields id === "" which must fall through to pid.
  return { pid, id, label: model?.label || id || pid };
 }
+
+/** OpenRouter `lab/model` prefixes whose lab name differs from our brand key. */
+const LAB_TO_BRAND: Record<string, string> = {
+ anthropic: "claude",
+ "x-ai": "grok",
+ "z-ai": "zai",
+ google: "gemini",
+ moonshotai: "kimi",
+};
+
+/** The brand key (for the logo) behind a model id. OpenRouter ids are `lab/model`,
+ *  so the lab is the prefix; a bare id is its own provider key (BYOK). */
+export function brandKeyForModelId(id: string): string {
+ const lab = (id.includes("/") ? id.split("/")[0] : id).toLowerCase();
+ return LAB_TO_BRAND[lab] ?? lab;
+}
+
+/** A model id's display name, e.g. `openai/gpt-5.5` → `GPT-5.5`. The lab is dropped
+ *  from the catalog label since the logo already carries it. */
+export function labelForModelId(id: string): string {
+ for (const p of MODEL_PROVIDERS) {
+ const m = p.models.find((mm) => mm.id === id);
+ if (m) return m.label.replace(/\s*\([^)]*\)\s*$/, "");
+ }
+ return id.includes("/") ? id.split("/").slice(1).join("/") : id;
+}

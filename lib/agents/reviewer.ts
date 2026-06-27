@@ -1,6 +1,6 @@
 import { config } from "@/lib/config";
 import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
-import { isLiveRuntime, assignedReviewerSlots, setting } from "@/lib/runtime-config";
+import { isLiveRuntime, assignedReviewers, setting } from "@/lib/runtime-config";
 import {
   diffStat,
   diffText,
@@ -175,10 +175,10 @@ export function getReviewers(): Reviewer[] {
   if (config.isLive || isLiveRuntime()) {
     // Dashboard-assigned reviewer panel (DB overlay: REVIEWER_1/2/3_MODEL +
     // provider keys) takes precedence over env-configured slots.
-    const slots = assignedReviewerSlots();
-    if (slots.length > 0) {
-      return slots.map(({ provider, pid }, i) =>
-        makeLiveReviewer(provider, slots.length > 1 ? `${pid}:${i + 1}` : pid),
+    const assigned = assignedReviewers();
+    if (assigned.length > 0) {
+      return assigned.map((p, i) =>
+        makeLiveReviewer(p, assigned.length > 1 ? `${p.model}#${i + 1}` : p.model),
       );
     }
 

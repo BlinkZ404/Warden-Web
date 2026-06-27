@@ -4,7 +4,7 @@ import { extractJson, anthropicText } from "@/lib/agents/json";
 import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
-import { isLiveRuntime, assignedProvider, assignedPid } from "@/lib/runtime-config";
+import { isLiveRuntime, assignedProvider } from "@/lib/runtime-config";
 import type { Incident } from "@/lib/db/types";
 import type { Investigator, InvestigationResult, SentryContext } from "@/lib/agents/types";
 
@@ -120,7 +120,7 @@ const liveInvestigator: Investigator = {
 export function getInvestigator(): Investigator {
   if (!(config.isLive || isLiveRuntime())) return simInvestigator;
   const assigned = assignedProvider("INVESTIGATOR_MODEL");
-  if (assigned) return makeCompatInvestigator(assigned, assignedPid("INVESTIGATOR_MODEL") ?? "agent");
+  if (assigned) return makeCompatInvestigator(assigned, assigned.model);
   if (isConfigured(investigatorProvider())) return makeCompatInvestigator(investigatorProvider());
   if (config.agents.anthropicApiKey) return liveInvestigator;
   return simInvestigator;
