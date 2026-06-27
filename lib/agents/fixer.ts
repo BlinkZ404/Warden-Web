@@ -24,20 +24,22 @@ async function isFile(p: string): Promise<boolean> {
 }
 
 /**
- * Resolve a culprit path to a real file in the workspace. Sentry stack frames and
- * model output frequently drop the extension (the path is really an import
- * specifier, e.g. `lib/auth/normalizeEmail`), so we try the path as-is, then the
- * common source extensions, then an `index` file, before giving up.
+ * Resolve a culprit path to a real file in the workspace. A Sentry stack frame for
+ * a TS app reports the COMPILED path (e.g. `lib/auth/normalizeEmail.js`) while the
+ * repo only has the `.ts` source, and model output often drops the extension
+ * entirely. So strip any extension and try the path as-is, the same base under
+ * each source extension, then an `index` file, before giving up.
  */
 async function resolveCulprit(
   workspaceRoot: string,
   file: string,
 ): Promise<{ file: string; path: string }> {
-  const candidates = [file];
-  if (!/\.[a-z0-9]+$/i.test(file)) {
-    for (const ext of SRC_EXTS) candidates.push(`${file}${ext}`);
-    for (const ext of SRC_EXTS) candidates.push(`${file}/index${ext}`);
-  }
+  const base = file.replace(/\.[a-z0-9]+$/i, "");
+  const candidates = [
+    file,
+    ...SRC_EXTS.map((e) => `${base}${e}`),
+    ...SRC_EXTS.map((e) => `${base}/index${e}`),
+  ];
   for (const c of candidates) {
     if (await isFile(join(workspaceRoot, c))) return { file: c, path: join(workspaceRoot, c) };
   }

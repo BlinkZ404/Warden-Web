@@ -8,7 +8,7 @@
  */
 import { normalizeSentryWebhook, syntheticSentryEvent } from "@/lib/adapters/sentry";
 import { ingestError } from "@/lib/ingest";
-import { drainJobs } from "@/lib/orchestrator/runner";
+import { drainJobs, shouldDrainInline } from "@/lib/orchestrator/runner";
 import { getBugByKey, SEEDED_BUGS } from "@/lib/sim/bugs";
 import { hydrateSettings, isLiveRuntime } from "@/lib/runtime-config";
 
@@ -28,7 +28,10 @@ export async function POST(req: Request) {
  { status: 400 });
  }
  const result = await ingestError(normalizeSentryWebhook(syntheticSentryEvent(bug)));
- await drainJobs("sim-fire");
+ // On Vercel the read-only filesystem can't prepare a workspace; enqueue only and
+ // let the always-on worker drain it (matching ingest + approve). Draining inline
+ // here also raced the worker, splitting the pipeline across two hosts.
+ if (shouldDrainInline()) await drainJobs("sim-fire");
  return Response.json(result, { status: 201 });
 }
 
