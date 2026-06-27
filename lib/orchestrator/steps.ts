@@ -36,7 +36,6 @@ import { bumpScorecard } from "@/lib/repo/scorecard";
 import { transition, isBoundary } from "@/lib/statemachine";
 import { logEvent, logAgentAction, logError } from "@/lib/events";
 import { getEmbedder, incidentEmbeddingText } from "@/lib/memory/embeddings";
-import { config } from "@/lib/config";
 import { getInvestigator } from "@/lib/agents/investigator";
 import { getFixer } from "@/lib/agents/fixer";
 import { getReviewers } from "@/lib/agents/reviewer";
@@ -230,6 +229,7 @@ async function stepInvestigating(incident: Incident) {
       rootCause: result.rootCause,
       confidence: result.confidence,
     });
+    await bumpScorecard(investigator.name, "investigator", { attempts: 1 });
   }
 
   // §5.8 conservative scope: low confidence → escalate, never guess.

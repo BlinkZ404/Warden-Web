@@ -27,10 +27,15 @@ export async function getBalance(): Promise<number> {
     "SELECT balance_usd::float8 AS balance FROM wallet WHERE id = 1",
   );
   if (row) return row.balance;
+  // First read: seed the singleton, then re-read so a concurrent first debit's
+  // balance wins over the starting figure rather than returning a stale constant.
   await query(`INSERT INTO wallet (id, balance_usd) VALUES (1, $1) ON CONFLICT (id) DO NOTHING`, [
     STARTING_BALANCE_USD,
   ]);
-  return STARTING_BALANCE_USD;
+  const seeded = await queryOne<{ balance: number }>(
+    "SELECT balance_usd::float8 AS balance FROM wallet WHERE id = 1",
+  );
+  return seeded?.balance ?? STARTING_BALANCE_USD;
 }
 
 interface Move {

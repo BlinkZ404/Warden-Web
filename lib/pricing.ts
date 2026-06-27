@@ -74,7 +74,7 @@ export function runRateUsd(modelId?: string | null): number {
  const id = modelId.toLowerCase();
  // Fast / small markers win first, so e.g. a "nano…reasoning" id isn't read as
  // frontier. Anchored to segment boundaries so "geMINI"/"MINImax" don't match "mini".
- if (/(^|[-/\s])(haiku|mini|flash|lite|air|nano)([-/\s.]|$)/.test(id)) return 0.006;
+ if (/(^|[-/\s])(haiku|mini|flash|lite|air|nano|fast)([-/\s.]|$)/.test(id)) return 0.006;
  // Frontier markers; "non-reasoning" must not count as reasoning.
  const reasoning = /reasoning/.test(id) && !/non-?reasoning/.test(id);
  if (/opus|ultra|super|pro/.test(id) || reasoning) return 0.04;
@@ -86,4 +86,10 @@ export function usd(n: number): string {
  if (n >= 1000) return `$${Math.round(n).toLocaleString("en-US")}`;
  if (n >= 10) return `$${Math.round(n)}`;
  return `$${n.toFixed(2)}`;
+}
+
+/** USD that always shows cents — for the wallet, where small per-run debits must
+ *  stay visible (a $24.68 balance must not round to "$25"). */
+export function usdc(n: number): string {
+ return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

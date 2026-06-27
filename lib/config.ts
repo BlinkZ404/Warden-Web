@@ -90,10 +90,6 @@ export const config = {
     // When no explicit REVIEWER_1/2/3 panel is set, replicate the default
     // reviewer provider this many times (1–3).
     panelSize: intIn("REVIEW_PANEL_SIZE", 1, 1, 3),
-    // How many reviewers must APPROVE to proceed. Blank = unanimous (all of them).
-    approvalsRequired: str("REVIEW_APPROVALS_REQUIRED")
-      ? intIn("REVIEW_APPROVALS_REQUIRED", 1, 1, 3)
-      : null,
   },
 
   sentry: {

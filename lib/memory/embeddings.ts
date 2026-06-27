@@ -82,8 +82,10 @@ const liveEmbedder: Embedder = {
       }),
     });
     if (!res.ok) throw new Error(`embeddings API ${res.status}`);
-    const json = (await res.json()) as { data: { embedding: number[] }[] };
-    return json.data[0].embedding;
+    const json = (await res.json()) as { data?: { embedding?: number[] }[] };
+    const embedding = json.data?.[0]?.embedding;
+    if (!embedding) throw new Error("embeddings API returned no embedding");
+    return embedding;
   },
 };
 

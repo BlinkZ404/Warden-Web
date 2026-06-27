@@ -14,7 +14,7 @@ export type ScorecardDelta = Partial<{
  */
 export async function bumpScorecard(
   agent: string,
-  role: "fixer" | "reviewer",
+  role: "fixer" | "reviewer" | "investigator",
   delta: ScorecardDelta,
 ): Promise<void> {
   await query(

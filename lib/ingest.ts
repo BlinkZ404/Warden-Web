@@ -39,7 +39,7 @@ export async function ingestError(err: NormalizedError): Promise<IngestResult> {
       first_seen: err.firstSeen,
       last_seen: err.lastSeen,
     });
-    await logEvent(incident.id, "ingest", "sentry", {
+    await logEvent(incident.id, "ingest", err.source, {
       errorType: err.errorType,
       errorMessage: err.errorMessage,
       culpritFile: err.culpritFile,

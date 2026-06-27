@@ -235,20 +235,12 @@ function Funnel({ fleet }: { fleet: FleetMetrics }) {
  );
 }
 
-function AgentTable({ agents }: { agents: AgentAccuracy[] }) {
- if (agents.length === 0)
+// Placeholder actor names from before the model-label fix; not worth a panel card.
+const STALE_AGENTS = new Set(["openrouter", "agent", "codex", "system", "demo-script"]);
+
+function AgentCard({ a }: { a: AgentAccuracy }) {
  return (
- <Frame innerClassName="px-5 py-8">
- <p className="text-center font-mono text-xs text-[var(--color-muted)]">
- no agent activity recorded yet
- </p>
- </Frame>
- );
- return (
- <Grid cols="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
- {agents.map((a) => (
  <Cell
- key={`${a.agent}-${a.role}`}
  icon={<Brand actor={a.agent} size={16} />}
  title={actorLabel(a.agent)}
  aside={a.role}
@@ -261,12 +253,48 @@ function AgentTable({ agents }: { agents: AgentAccuracy[] }) {
  </div>
  ) : (
  <div className="font-mono text-xs text-[var(--color-muted)]">
- reviews <b className="text-[var(--color-text)]">{a.attempts}</b>
+ {a.role === "investigator" ? "investigations" : "reviews"}{" "}
+ <b className="text-[var(--color-text)]">{a.attempts}</b>
  </div>
  )}
  </Cell>
+ );
+}
+
+function AgentRow({ label, agents }: { label: string; agents: AgentAccuracy[] }) {
+ if (agents.length === 0) return null;
+ return (
+ <div>
+ <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-muted)]">
+ {label}
+ </p>
+ <Grid cols="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+ {agents.map((a) => (
+ <AgentCard key={`${a.agent}-${a.role}`} a={a} />
  ))}
  </Grid>
+ </div>
+ );
+}
+
+function AgentTable({ agents }: { agents: AgentAccuracy[] }) {
+ const clean = agents.filter((a) => !STALE_AGENTS.has(a.agent.toLowerCase()));
+ if (clean.length === 0)
+ return (
+ <Frame innerClassName="px-5 py-8">
+ <p className="text-center font-mono text-xs text-[var(--color-muted)]">
+ no agent activity recorded yet
+ </p>
+ </Frame>
+ );
+ // The pipeline (one model per role) and the reviewer panel each get their own row.
+ const pipeline = clean.filter((a) => a.role !== "reviewer");
+ const reviewers = clean.filter((a) => a.role === "reviewer");
+ return (
+ <div className="space-y-5">
+ <AgentRow label="Fixer + Investigator" agents={pipeline} />
+ <AgentRow label="Reviewer panel" agents={reviewers} />
+ </div>
  );
 }
 

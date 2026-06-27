@@ -54,7 +54,8 @@ export default function Dashboard() {
  load();
  fetch("/api/sim/fire")
  .then((r) => r.json())
- .then((d) => setBugs(d.bugs ?? []));
+ .then((d) => setBugs(d.bugs ?? []))
+ .catch(() => {});
  const t = setInterval(load, 3000);
  return () => clearInterval(t);
  }, [load]);

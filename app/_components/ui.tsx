@@ -82,7 +82,7 @@ export function PipelineBar({ status }: { status: IncidentStatus }) {
 }
 
 export function VerdictPill({ verdict }: { verdict: string | null }) {
- if (!verdict) return <span className="text-[var(--color-muted)]">; </span>;
+ if (!verdict) return <span className="text-[var(--color-muted)]">—</span>;
  const color =
  verdict === "approve"
  ? "var(--color-ok)"

@@ -27,7 +27,7 @@ export function isAllowedPushEndpoint(endpoint: string): boolean {
   if (u.protocol !== "https:") return false;
   const host = u.hostname.toLowerCase();
   if (host === "localhost" || host.endsWith(".localhost")) return false;
-  if (host === "::1" || host === "169.254.169.254") return false;
+  if (host === "::1") return false;
   if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return false;
   if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
   if (host.startsWith("fc") || host.startsWith("fd")) return false; // unique-local IPv6

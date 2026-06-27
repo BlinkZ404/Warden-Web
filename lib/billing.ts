@@ -8,7 +8,7 @@
  * the dashboard can flip it without a redeploy.
  */
 import { setting } from "@/lib/runtime-config";
-import { parseAssignment } from "@/lib/models";
+import { parseAssignment, labelForModelId } from "@/lib/models";
 import { runRateUsd } from "@/lib/pricing";
 import { getBalance, debit } from "@/lib/repo/wallet";
 
@@ -34,12 +34,13 @@ export async function meterRun(
   if (opts.roleKey) {
     const a = parseAssignment(setting(opts.roleKey));
     rate = runRateUsd(a?.id);
-    label = a?.label ?? "managed";
+    label = labelForModelId(a?.id ?? "") || a?.label || "managed";
   } else {
-    // Panel reviewer names can carry a " #2" suffix; strip it before pricing.
+    // Panel reviewer names can carry a "#2" suffix; strip it before pricing and
+    // show the friendly model name in the ledger, not the raw "lab/model#n" slug.
     const id = (opts.model ?? "").replace(/\s*#\d+$/, "");
     rate = runRateUsd(id);
-    label = opts.model || "managed";
+    label = labelForModelId(id) || opts.model || "managed";
   }
   if (rate <= 0) return;
   try {

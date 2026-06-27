@@ -4,7 +4,7 @@
  * The Sentry pipeline only fires when something throws. The most-cited vibe-coded
  * breach class throws nothing: a Supabase/Firebase table left with Row-Level
  * Security OFF serves every row to the anonymous API key, silently, until a
- * stranger finds it (the most-cited class of vibe-coded breach). Detection is solved by
+ * stranger finds it. Detection is solved by
  * vendors, but a non-technical founder cannot read a scanner report or write the
  * policy SQL to fix it. This lane closes that loop: scan -> plain-English finding
  * -> generated policy -> one-tap consent -> post-apply assertion.

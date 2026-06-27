@@ -228,22 +228,28 @@ export default function IncidentDetail() {
  </>
  ),
  });
- if (deployment)
+ if (deployment) {
+ const simDeploy = deployment.deployment_id?.startsWith("dpl_sim_") ?? false;
  arts.push({
  key: "dep",
  icon: "deploy",
  title: "Deployment",
- aside: "vercel",
+ aside: simDeploy ? "simulated" : "vercel",
  body: (
  <>
  {deployment.prod_url && <Field label="prod" value={deployment.prod_url} accent />}
- <Field label="preview" value={deployment.preview_url ?? "—"} accent />
+ <Field
+ label="preview"
+ value={simDeploy ? "simulated (no Vercel connected)" : deployment.preview_url ?? "—"}
+ accent={!simDeploy}
+ />
  {deployment.rolled_back && (
  <p className="mt-2 font-mono text-xs text-[var(--color-warn)]">↺ auto-rolled back</p>
  )}
  </>
  ),
  });
+ }
  if (outcome)
  arts.push({
  key: "out",

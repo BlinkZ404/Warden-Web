@@ -21,7 +21,7 @@ import { Brand, actorLabel } from "@/app/_components/brand";
 import { Icon } from "@/app/_components/icons";
 import { usePolled } from "@/app/_components/use-polled";
 import { ROLE_SLOTS as ROLES, parseAssignment } from "@/lib/models";
-import { usd, TOPUP_OPTIONS_USD, LOW_BALANCE_USD } from "@/lib/pricing";
+import { usd, usdc, TOPUP_OPTIONS_USD, LOW_BALANCE_USD } from "@/lib/pricing";
 import type { LedgerEntry } from "@/lib/repo/wallet";
 import type { BillingMode } from "@/lib/billing";
 
@@ -98,8 +98,8 @@ export default function UsagePage() {
             },
             {
               label: "Wallet balance",
-              value: billing ? usd(billing.balance) : "—",
-              hint: billing ? `${usd(billing.spent)} metered` : "managed inference",
+              value: billing ? usdc(billing.balance) : "—",
+              hint: billing ? `${usdc(billing.spent)} metered` : "managed inference",
               tone:
                 billing && billing.balance < LOW_BALANCE_USD
                   ? "var(--color-warn)"
@@ -221,10 +221,10 @@ function WalletPanel({ billing, onChange }: { billing: Billing; onChange: () => 
               className="mt-1 font-mono text-3xl font-semibold"
               style={{ color: low ? "var(--color-warn)" : "var(--color-ok)" }}
             >
-              {usd(billing.balance)}
+              {usdc(billing.balance)}
             </div>
             <div className="mt-1 text-[11px] text-[var(--color-muted)]">
-              {usd(billing.spent)} metered this period
+              {usdc(billing.spent)} metered this period
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -265,10 +265,10 @@ function WalletPanel({ billing, onChange }: { billing: Billing; onChange: () => 
                       }}
                     >
                       {e.kind === "topup" ? "+" : "−"}
-                      {usd(Math.abs(e.amount_usd))}
+                      {usdc(Math.abs(e.amount_usd))}
                     </span>
-                    <span className="w-14 text-right text-[var(--color-text)]">
-                      {usd(e.balance_after)}
+                    <span className="w-16 text-right text-[var(--color-text)]">
+                      {usdc(e.balance_after)}
                     </span>
                   </span>
                 </div>

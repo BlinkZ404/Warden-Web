@@ -36,14 +36,13 @@ function reviewerProvider() {
 }
 
 /**
- * Reviewer = Codex (a different model family from the Fixer). The simulation
- * does REAL deterministic work on the actual diff and git history: scope,
- * whether the fix touches the file the error implicates, unrelated files, and
- * overlap with recently-changed code, rather than returning a canned verdict.
- * This is the product's "verify-not-review" cross-check (PLAN §3, §5.4, §10),
- * so it must produce a real signal: disagreement → escalate.
+ * A deterministic reviewer that does REAL diff/git analysis on the actual diff
+ * and git history (no model call): scope, whether the fix touches the file the
+ * error implicates, unrelated files, and overlap with recently-changed code,
+ * rather than returning a canned verdict. This is the product's
+ * "verify-not-review" cross-check (PLAN §3, §5.4, §10), so it must produce a
+ * real signal: disagreement escalates.
  */
-/** A deterministic reviewer that does REAL diff/git analysis (no model call). */
 function simReviewer(name = "codex"): Reviewer {
   return {
     name,
@@ -160,7 +159,9 @@ function makeLiveReviewer(provider: CompatProvider, name: string): Reviewer {
             files: stat.files,
           },
           touchesCulprit: touchesImplicated(stat.files, ctx.culpritFile),
-          unrelatedFiles: [],
+          unrelatedFiles: ctx.culpritFile
+            ? stat.files.filter((f) => !sameFile(f, ctx.culpritFile!))
+            : [],
           recentlyChanged: [],
           notes: parsed.notes ?? [],
         },

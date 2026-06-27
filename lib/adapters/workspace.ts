@@ -18,7 +18,7 @@ import type { ChildProcess } from "node:child_process";
 import { createServer as netCreateServer, connect as netConnect } from "node:net";
 import { promisify } from "node:util";
 import { cp, mkdir, readFile, writeFile, rm, access } from "node:fs/promises";
-import { join, dirname, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { ensureTargetRepo, targetRepoUrl } from "@/lib/adapters/github-repo";
 import type { CodeEdit, SeededBug } from "@/lib/sim/bugs";
 
@@ -131,7 +131,9 @@ export async function applyEdit(root: string, edit: CodeEdit): Promise<void> {
       `applyEdit: anchor not found in ${edit.file}. The code may have drifted from the expected shape.`,
     );
   }
-  await writeFile(file, before.replace(edit.find, edit.replace), "utf8");
+  // Function replacement so `$`-sequences in the new text (e.g. `$1`, `$&`) are
+  // written literally instead of being interpreted as String.replace patterns.
+  await writeFile(file, before.replace(edit.find, () => edit.replace), "utf8");
 }
 
 export async function createBranch(root: string, branch: string): Promise<void> {
@@ -744,5 +746,3 @@ export async function destroyWorkspace(incidentId: string): Promise<void> {
   // Retry on Windows EBUSY/ENOTEMPTY: a just-exited child can briefly keep the dir handle.
   await rm(workspacePath(incidentId), { recursive: true, force: true, maxRetries: 10, retryDelay: 150 });
 }
-
-void dirname; // (reserved for live-mode clone path)

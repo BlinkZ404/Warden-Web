@@ -105,21 +105,6 @@ export function verificationGate(v: VerificationFacts): GateResult {
   return { pass: false, reasons };
 }
 
-/** Scope sanity (§10): the diff should plausibly relate to the error. */
-export function scopeIsSane(input: {
-  filesChanged: number;
-  churn: number;
-  touchesCulprit: boolean;
-  unrelatedFiles: number;
-}): GateResult {
-  const reasons: string[] = [];
-  if (!input.touchesCulprit) reasons.push("fix does not touch the implicated file");
-  if (input.unrelatedFiles > 0) reasons.push("fix touches unrelated files");
-  if (input.filesChanged > 5) reasons.push("too many files changed");
-  if (input.churn > 120) reasons.push("diff is very large");
-  return { pass: reasons.length === 0, reasons };
-}
-
 export interface ScopePolicy {
   maxFiles: number;
   maxChurn: number;

@@ -122,32 +122,6 @@ export function Select({
 export const FIELD =
  "w-full rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] px-3 py-2 font-mono text-xs text-[var(--color-text)] outline-none transition focus:border-[var(--color-accent)]";
 
-export function TextField({
- label,
- placeholder,
- value,
- onChange,
-}: {
- label: string;
- placeholder?: string;
- value: string;
- onChange: (v: string) => void;
-}) {
- return (
- <label className="block">
- <Label>{label}</Label>
- <input
- type="text"
- spellCheck={false}
- placeholder={placeholder}
- value={value}
- onChange={(e) => onChange(e.target.value)}
- className={`mt-1.5 ${FIELD}`}
- />
- </label>
- );
-}
-
 export function KeyField({
  label,
  placeholder,
