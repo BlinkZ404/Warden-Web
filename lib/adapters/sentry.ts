@@ -71,6 +71,27 @@ interface StackFrame {
   in_app?: boolean;
 }
 
+/**
+ * A Sentry event. The issue-alert webhook delivers it under `data.event`; the
+ * internal-integration "error" webhook delivers it under `data.error`. Either way
+ * it carries the stack trace and the captured request the verification gate needs,
+ * so we accept both and read the same fields from whichever is present.
+ */
+interface SentryEvent {
+  release?: string;
+  event_id?: string;
+  title?: string;
+  culprit?: string;
+  transaction?: string;
+  level?: string;
+  metadata?: { type?: string; value?: string };
+  project?: string | { slug?: string; name?: string };
+  exception?: {
+    values?: { type?: string; value?: string; stacktrace?: { frames?: StackFrame[] } }[];
+  };
+  request?: { method?: string; url?: string; data?: unknown };
+}
+
 interface SentryIssuePayload {
   data?: {
     issue?: {
@@ -86,11 +107,8 @@ interface SentryIssuePayload {
       firstSeen?: string;
       lastSeen?: string;
     };
-    event?: {
-      release?: string;
-      exception?: { values?: { stacktrace?: { frames?: StackFrame[] } }[] };
-      request?: { method?: string; url?: string; data?: unknown };
-    };
+    event?: SentryEvent;
+    error?: SentryEvent;
   };
   // Synthetic payloads may carry explicit fingerprint + reproduction signal.
   _fingerprint?: string;
@@ -159,23 +177,54 @@ function commitFromRelease(release?: string): string | undefined {
   return /^[0-9a-f]{7,40}$/i.test(tail) ? tail.toLowerCase() : undefined;
 }
 
-/** Map a Sentry issue webhook payload to our canonical error shape. */
+/**
+ * A Sentry stack-frame filename reduced to a repo-relative path. Sentry and the
+ * bundler prefix frames a few ways (`app:///`, `webpack-internal:///(rsc)/./`, a
+ * leading `./`); strip those so the path matches a file in the cloned repo.
+ */
+function normalizeFramePath(filename?: string): string | undefined {
+  if (!filename) return undefined;
+  const p = filename
+    .trim()
+    .replace(/^app:\/\/\//, "")
+    .replace(/^webpack-internal:\/\/\/(\([^)]*\)\/)?/, "")
+    .replace(/^\.\//, "");
+  return p || undefined;
+}
+
+/**
+ * Map a Sentry webhook payload to our canonical error shape. Handles both the
+ * issue webhook (issue summary, no stack trace) and the "error" / alert webhook
+ * (the full event with the stack trace + request). Fields fall back from the issue
+ * to the event, so either delivery yields the culprit file and the failing request
+ * the verification gate needs.
+ */
 export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedError {
   const issue = payload.data?.issue ?? {};
-  const meta = issue.metadata ?? {};
-  const event = payload.data?.event;
-  const frames = event?.exception?.values?.[0]?.stacktrace?.frames;
-  const frame = pickCulpritFrame(frames);
-  const service = projectName(issue.project);
+  // The full event arrives under data.event (alert) or data.error ("error"
+  // webhook); both carry the stack trace + request the verification gate replays.
+  const event = payload.data?.event ?? payload.data?.error;
+  const exc = event?.exception?.values?.[0];
+  const meta = issue.metadata ?? event?.metadata ?? {};
+  const frame = pickCulpritFrame(exc?.stacktrace?.frames);
+  const service = projectName(issue.project ?? event?.project);
+
+  const errorType = meta.type ?? exc?.type ?? "Error";
+  const errorMessage = meta.value ?? exc?.value ?? issue.title ?? event?.title ?? "";
+
+  const culpritFile =
+    payload._culpritFile ??
+    normalizeFramePath(frame?.filename) ??
+    issue.culprit ??
+    event?.culprit ??
+    undefined;
+  const culpritFunction = payload._culpritFunction ?? frame?.function ?? undefined;
 
   const fingerprint =
     payload._fingerprint ??
     issue.fingerprint?.[0] ??
-    `${service}/${issue.culprit ?? "unknown"}/${meta.type ?? "Error"}`;
+    `${service}/${issue.culprit ?? culpritFile ?? "unknown"}/${errorType}`;
 
-  const culpritFile =
-    payload._culpritFile ?? frame?.filename ?? issue.culprit ?? undefined;
-  const culpritFunction = payload._culpritFunction ?? frame?.function ?? undefined;
   const triggeringRequest =
     payload._triggeringRequest ?? (event ? pickTriggeringRequest(event) : undefined);
   const httpRequest = payload._httpRequest ?? (event ? pickHttpRequest(event) : undefined);
@@ -183,13 +232,13 @@ export function normalizeSentryWebhook(payload: SentryIssuePayload): NormalizedE
 
   return {
     source: "sentry",
-    externalId: issue.id ?? fingerprint,
+    externalId: issue.id ?? event?.event_id ?? fingerprint,
     fingerprint,
-    title: issue.title ?? `${meta.type ?? "Error"}: ${meta.value ?? ""}`.trim(),
+    title: issue.title ?? event?.title ?? `${errorType}: ${errorMessage}`.trim(),
     service,
-    severity: issue.level ?? "error",
-    errorType: meta.type ?? "Error",
-    errorMessage: meta.value ?? issue.title ?? "",
+    severity: issue.level ?? event?.level ?? "error",
+    errorType,
+    errorMessage,
     culpritFile,
     culpritFunction,
     triggeringRequest,

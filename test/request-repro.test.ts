@@ -12,6 +12,51 @@ import {
 } from "@/lib/adapters/workspace";
 
 describe("request-replay reproduction (boot the app, replay the failing request)", () => {
+  it("reads the stack trace and request from the Sentry 'error' webhook (data.error, no issue summary)", () => {
+    const norm = normalizeSentryWebhook({
+      data: {
+        // the "error" webhook delivers the full event here, with NO data.issue
+        error: {
+          event_id: "abc123",
+          project: "notehex-warden-demo",
+          metadata: { type: "TypeError", value: "t.trim(...).toLowerCasee is not a function" },
+          exception: {
+            values: [
+              {
+                type: "TypeError",
+                value: "t.trim(...).toLowerCasee is not a function",
+                stacktrace: {
+                  frames: [
+                    {
+                      function: "normalizeEmail",
+                      filename: "app:///lib/auth/normalizeEmail.ts",
+                      in_app: true,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          request: {
+            method: "POST",
+            url: "https://notehex-warden-demo.vercel.app/api/auth/sign-in",
+            data: { email: "x@y.com" },
+          },
+        },
+      },
+    });
+    expect(norm.errorType).toBe("TypeError");
+    // the `app:///` prefix is stripped so the path resolves in the cloned repo
+    expect(norm.culpritFile).toBe("lib/auth/normalizeEmail.ts");
+    expect(norm.culpritFunction).toBe("normalizeEmail");
+    expect(norm.service).toBe("notehex-warden-demo");
+    expect(norm.httpRequest).toEqual({
+      method: "POST",
+      path: "/api/auth/sign-in",
+      body: { email: "x@y.com" },
+    });
+  });
+
   it("reproduces the checkout 500 over real HTTP, then confirms the fix clears it", async () => {
     const bug = getBugByKey("checkout-missing-price")!;
     const id = "request-repro-checkout";
