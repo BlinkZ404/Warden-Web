@@ -226,6 +226,33 @@ export const SEEDED_BUGS: SeededBug[] = [
     },
     stubbornSloppy: true,
   },
+  {
+    // Sensitive-path scenario: the fix lands on an auth module, so Warden fixes
+    // and verifies it but routes it to a human for approval rather than
+    // auto-shipping (the require-approval policy for protected paths).
+    key: "signin-email-typo",
+    fingerprint: "notehex/normalizeEmail/TypeError-toLowerCasee",
+    title: "TypeError in sign-in: email.trim(...).toLowerCasee is not a function",
+    service: "notehex",
+    severity: "error",
+    errorType: "TypeError",
+    errorMessage: "email.trim(...).toLowerCasee is not a function",
+    culpritFile: "src/auth.js",
+    rootCause:
+      "normalizeEmail lowercases the address with `toLowerCasee()`, a typo for the built-in `toLowerCase()`. Since `toLowerCasee` is not a String method, every sign-in throws a TypeError. The fix is one character, but the file is an auth module, so Warden verifies it and asks a human to approve before shipping.",
+    fixSummary:
+      "Fix the typo in the sign-in email cleanup (toLowerCasee to toLowerCase) so logins stop crashing. Because it touches auth code, the verified fix waits for your approval before it ships.",
+    reproScenario: "signin-email-typo",
+    triggeringInput: "Founder@Example.com",
+    repro: {
+      module: "src/auth.js",
+      export: "normalizeEmail",
+      args: ["Founder@Example.com"],
+    },
+    smokeInputs: ["a@b.com", "Test.User@Domain.CO"],
+    inject: { file: "src/auth.js", find: "email.trim().toLowerCase()", replace: "email.trim().toLowerCasee()" },
+    fix: { file: "src/auth.js", find: "email.trim().toLowerCasee()", replace: "email.trim().toLowerCase()" },
+  },
 ];
 
 export function getBugByKey(key: string): SeededBug | undefined {

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { config } from "@/lib/config";
 import { extractJson, anthropicText } from "@/lib/agents/json";
@@ -6,18 +6,49 @@ import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai
 import { httpError } from "@/lib/http";
 import { getBugByFingerprint } from "@/lib/sim/bugs";
 import { createBranch, applyEdit, commitAll, gatherCallerContext } from "@/lib/adapters/workspace";
-import { isLiveRuntime, assignedProvider } from "@/lib/runtime-config";
+import { isLiveRuntime, assignedProvider, assignedModelId } from "@/lib/runtime-config";
 import type { Fixer, FixerContext, FixProposal } from "@/lib/agents/types";
 
 function branchName(incidentId: string): string {
   return `warden/fix-${incidentId.slice(0, 8)}`;
 }
 
-function culprit(ctx: FixerContext): { file: string; path: string } {
+const SRC_EXTS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+
+async function isFile(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve a culprit path to a real file in the workspace. Sentry stack frames and
+ * model output frequently drop the extension (the path is really an import
+ * specifier, e.g. `lib/auth/normalizeEmail`), so we try the path as-is, then the
+ * common source extensions, then an `index` file, before giving up.
+ */
+async function resolveCulprit(
+  workspaceRoot: string,
+  file: string,
+): Promise<{ file: string; path: string }> {
+  const candidates = [file];
+  if (!/\.[a-z0-9]+$/i.test(file)) {
+    for (const ext of SRC_EXTS) candidates.push(`${file}${ext}`);
+    for (const ext of SRC_EXTS) candidates.push(`${file}/index${ext}`);
+  }
+  for (const c of candidates) {
+    if (await isFile(join(workspaceRoot, c))) return { file: c, path: join(workspaceRoot, c) };
+  }
+  return { file, path: join(workspaceRoot, file) };
+}
+
+async function culprit(ctx: FixerContext): Promise<{ file: string; path: string }> {
   const file =
     (ctx.investigation.context as { culpritFile?: string } | null)?.culpritFile ??
     "src/index.js";
-  return { file, path: join(ctx.workspaceRoot, file) };
+  return resolveCulprit(ctx.workspaceRoot, file);
 }
 
 /** Write the rewritten file on a new branch and commit it (no merge, no deploy). */
@@ -93,7 +124,7 @@ function makeCompatFixer(provider: CompatProvider, name = "agent"): Fixer {
   return {
     name,
     async propose(ctx: FixerContext): Promise<FixProposal> {
-      const { file, path } = culprit(ctx);
+      const { file, path } = await culprit(ctx);
       const original = await readFile(path, "utf8");
       const callers = await gatherCallerContext(ctx.workspaceRoot, file);
       const parsed = await chatJson<{ newContent: string; summary: string }>(
@@ -110,7 +141,7 @@ function makeCompatFixer(provider: CompatProvider, name = "agent"): Fixer {
 const liveFixer: Fixer = {
   name: "claude",
   async propose(ctx: FixerContext): Promise<FixProposal> {
-    const { file, path } = culprit(ctx);
+    const { file, path } = await culprit(ctx);
     const original = await readFile(path, "utf8");
     const callers = await gatherCallerContext(ctx.workspaceRoot, file);
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -140,10 +171,13 @@ export function getFixer(): Fixer {
   // Live if the env (config.isLive) OR the dashboard overlay (isLiveRuntime) says
   // so. Provider precedence: dashboard assignment → env OpenAI-compatible config
   // → native Anthropic → simulation.
-  if (!(config.isLive || isLiveRuntime())) return simFixer;
+  // The sim agent labels itself with the assigned model so a sample incident
+  // matches a live one.
+  const sim = { ...simFixer, name: assignedModelId("FIXER_MODEL") ?? simFixer.name };
+  if (!(config.isLive || isLiveRuntime())) return sim;
   const assigned = assignedProvider("FIXER_MODEL");
   if (assigned) return makeCompatFixer(assigned, assigned.model);
   if (isConfigured(config.agents.fixer)) return makeCompatFixer(config.agents.fixer);
   if (config.agents.anthropicApiKey) return liveFixer;
-  return simFixer;
+  return sim;
 }

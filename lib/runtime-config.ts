@@ -62,6 +62,11 @@ export function assignedProvider(roleKey: string): CompatProvider | null {
  return { baseUrl: provider.baseUrl, apiKey, model: a.id };
 }
 
+/** The model id assigned to a role (e.g. "openai/gpt-5.5"), for display attribution. */
+export function assignedModelId(roleKey: string): string | null {
+ return parseAssignment(setting(roleKey))?.id ?? null;
+}
+
 /** The reviewer panel from the saved REVIEWER_1/2/3 assignments (configured only). */
 export function assignedReviewers(): CompatProvider[] {
  return [1, 2, 3]

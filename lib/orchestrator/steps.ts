@@ -67,7 +67,7 @@ import {
   verifyProdHealth,
   currentProdDeployment,
 } from "@/lib/adapters/deploy";
-import { consensusOf, verificationGate, policyGate, deployParityOk } from "@/lib/policy/gate";
+import { consensusOf, verificationGate, policyGate, protectedPaths, deployParityOk } from "@/lib/policy/gate";
 import {
   scopePolicy,
   approvalsRequired,
@@ -303,9 +303,11 @@ async function stepUnderReview(incident: Incident) {
 
   const root = workspacePath(incident.id);
   const stat = await diffStat(root, "main", fa.branch!);
+  const policy = scopePolicy();
   const scope = policyGate(
     { files: stat.files, filesChanged: stat.filesChanged, churn: stat.insertions + stat.deletions },
-    scopePolicy(),
+    policy,
+    { protectedSoft: true },
   );
   if (!scope.pass) {
     await escalateGate(
@@ -315,6 +317,18 @@ async function stepUnderReview(incident: Incident) {
       `fix scope policy failed: ${scope.reasons.join("; ")}`,
     );
     return;
+  }
+  // A sensitive path (auth/data/schema) is no longer a hard deny: Warden still
+  // fixes and verifies it, then routes it to a human at the approval gate rather
+  // than auto-shipping. Record it so the audit shows why approval is required.
+  const sensitive = protectedPaths(stat.files, policy);
+  if (sensitive.length > 0) {
+    await logEvent(incident.id, "gate", "system", {
+      gate: "scope",
+      pass: true,
+      sensitive,
+      note: "sensitive path: verified fix requires human approval, not auto-ship",
+    });
   }
 
   // Run the reviewer PANEL (1–3 independent reviewers, ideally different model
@@ -554,10 +568,11 @@ async function stepVerifying(incident: Incident) {
 
   // Autopilot: if the operator opted in, a fix that cleared verification ships
   // without a human tap (recorded as a system actor for the audit log). The same
-  // drain cycle then carries on to deploy, so no resume job is enqueued. Scope/
-  // guardrail violations and reviewer disagreement escalated earlier and never
-  // reach here, so only verified, in-policy fixes auto-approve.
-  if (autoApprove()) {
+  // drain cycle then carries on to deploy, so no resume job is enqueued. But a fix
+  // touching a sensitive path (auth/data/schema) NEVER auto-approves, even under
+  // autopilot — it always waits for a human, which is the point of protecting it.
+  const sensitiveInFix = protectedPaths((fa.files_changed as string[] | null) ?? [], scopePolicy());
+  if (autoApprove() && sensitiveInFix.length === 0) {
     await recordApproval({
       incidentId: incident.id,
       decision: "approve",

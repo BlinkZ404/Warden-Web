@@ -194,17 +194,29 @@ export function pathMatchesGlob(filePath: string, glob: string): boolean {
 export function policyGate(
   scope: { files: string[]; filesChanged: number; churn: number },
   policy: ScopePolicy,
+  opts: { protectedSoft?: boolean } = {},
 ): GateResult {
   const reasons: string[] = [];
   if (scope.filesChanged > policy.maxFiles) reasons.push("too many files changed");
   if (scope.churn > policy.maxChurn) reasons.push("diff is too large");
-  for (const file of scope.files) {
-    if (policy.denyGlobs.some((g) => pathMatchesGlob(file, g))) {
-      reasons.push(`protected path (Warden won't auto-edit data, auth, or schema): ${file}`);
-      break;
+  // A protected path is a HARD deny by default; when protectedSoft is set the
+  // caller treats it as a require-approval signal instead (verify, then human gate).
+  if (!opts.protectedSoft) {
+    for (const file of scope.files) {
+      if (policy.denyGlobs.some((g) => pathMatchesGlob(file, g))) {
+        reasons.push(`protected path (Warden won't auto-edit data, auth, or schema): ${file}`);
+        break;
+      }
     }
   }
   return { pass: reasons.length === 0, reasons };
+}
+
+/** Diff files that touch a protected path (data/auth/schema). Under the
+ *  require-approval policy these don't hard-fail: Warden verifies the fix, then a
+ *  human signs off rather than it auto-shipping. */
+export function protectedPaths(files: string[], policy: ScopePolicy): string[] {
+  return files.filter((f) => policy.denyGlobs.some((g) => pathMatchesGlob(f, g)));
 }
 
 /**

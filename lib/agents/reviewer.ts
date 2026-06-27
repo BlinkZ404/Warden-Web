@@ -1,6 +1,6 @@
 import { config } from "@/lib/config";
 import { chatJson, isConfigured, type CompatProvider } from "@/lib/agents/openai-compat";
-import { isLiveRuntime, assignedReviewers, setting } from "@/lib/runtime-config";
+import { isLiveRuntime, assignedReviewers, assignedModelId, setting } from "@/lib/runtime-config";
 import {
   diffStat,
   diffText,
@@ -9,6 +9,19 @@ import {
 } from "@/lib/adapters/workspace";
 import type { ReviewVerdict } from "@/lib/db/types";
 import type { Reviewer, ReviewerContext, ReviewResult, ReviewFindings } from "@/lib/agents/types";
+
+/** Two repo paths refer to the same file even if one drops the extension or is a
+ *  directory's index file — Sentry frames and model output are inconsistent about
+ *  both, so an exact string match wrongly flags a correct fix as off-target. */
+function sameFile(a: string, b: string): boolean {
+  if (a === b) return true;
+  const strip = (s: string) => s.replace(/\.[a-z0-9]+$/i, "").replace(/\/index$/, "");
+  return strip(a) === strip(b);
+}
+
+function touchesImplicated(files: string[], culprit?: string): boolean {
+  return culprit ? files.some((f) => sameFile(f, culprit)) : true;
+}
 
 // The Reviewer runs on its own configured provider (so the cross-check can use a
 // different model family than the Fixer), falling back to native OpenAI.
@@ -38,9 +51,9 @@ function simReviewer(name = "codex"): Reviewer {
     const { workspaceRoot: root, baseRef, headRef, culpritFile } = ctx;
     const stat = await diffStat(root, baseRef, headRef);
 
-    const touchesCulprit = culpritFile ? stat.files.includes(culpritFile) : true;
+    const touchesCulprit = touchesImplicated(stat.files, culpritFile);
     const unrelatedFiles = culpritFile
-      ? stat.files.filter((f) => f !== culpritFile)
+      ? stat.files.filter((f) => !sameFile(f, culpritFile))
       : [];
 
     // Overlap with recently-changed code on the base branch.
@@ -146,7 +159,7 @@ function makeLiveReviewer(provider: CompatProvider, name: string): Reviewer {
             deletions: stat.deletions,
             files: stat.files,
           },
-          touchesCulprit: ctx.culpritFile ? stat.files.includes(ctx.culpritFile) : true,
+          touchesCulprit: touchesImplicated(stat.files, ctx.culpritFile),
           unrelatedFiles: [],
           recentlyChanged: [],
           notes: parsed.notes ?? [],
@@ -219,7 +232,10 @@ export function getReviewers(): Reviewer[] {
     }
   }
   const n = resolvedPanelSize();
-  return Array.from({ length: n }, (_, i) =>
-    simReviewer(n > 1 ? `reviewer-${i + 1}` : "codex"),
-  );
+  return Array.from({ length: n }, (_, i) => {
+    // Label each sim reviewer with its assigned model (if any) so a sample panel
+    // matches the live one; fall back to a generic name when unassigned.
+    const m = assignedModelId(`REVIEWER_${i + 1}_MODEL`);
+    return simReviewer(m ? (n > 1 ? `${m}#${i + 1}` : m) : n > 1 ? `reviewer-${i + 1}` : "codex");
+  });
 }
