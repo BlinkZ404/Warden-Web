@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { brandKeyForModelId, labelForModelId } from "@/lib/models";
+import { Icon } from "@/app/_components/icons";
 
 const BRANDS: Record<string, { domain?: string; label: string; color: string }> = {
  claude: { domain: "anthropic.com", label: "Claude", color: "#d97757" },
@@ -24,11 +25,11 @@ const BRANDS: Record<string, { domain?: string; label: string; color: string }> 
  "demo-script": { label: "Warden", color: "#5c6795" },
 };
 
-/** Display name for an event actor (`human:founder` → `Founder`, etc.). */
+/** Display name for an event actor (`human:founder` → `User`, etc.). */
 export function actorLabel(actor: string): string {
  if (actor.startsWith("human:")) {
  const n = actor.slice(6);
- return n ? n.charAt(0).toUpperCase() + n.slice(1) : "Human";
+ return n && n !== "founder" ? n.charAt(0).toUpperCase() + n.slice(1) : "User";
  }
  if (actor.startsWith("system:")) {
  return actor.slice(7) === "auto-approve" ? "Autopilot" : "Warden";
@@ -53,6 +54,26 @@ export function Brand({ actor, size = 16 }: { actor: string; size?: number }) {
  return (
  // eslint-disable-next-line @next/next/no-img-element
  <img src="/icon.png" width={size} height={size} alt={label} className="rounded-[3px]" />
+ );
+ }
+
+ // A human actor (the approver) gets a person glyph rather than a favicon or letter.
+ if (baseKey === "human") {
+ return (
+ <span
+ role="img"
+ aria-label={label}
+ className="grid shrink-0 place-items-center rounded-[3px]"
+ style={{
+ width: size,
+ height: size,
+ color: "#5c6795",
+ background: "color-mix(in srgb, #5c6795 16%, transparent)",
+ border: "1px solid color-mix(in srgb, #5c6795 35%, transparent)",
+ }}
+ >
+ <Icon name="user" size={Math.round(size * 0.7)} />
+ </span>
  );
  }
 

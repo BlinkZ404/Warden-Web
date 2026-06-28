@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import { Sidebar, MobileNav } from "@/app/_components/sidebar";
 import { hydrateSettings, isLiveRuntime } from "@/lib/runtime-config";
 
+// The sidebar shows a run-mode-dependent item (the simulation-only Security
+// lane), so this layout must reflect the current saved mode rather than a cached
+// render. Force dynamic so it re-hydrates settings on every request.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
  // Re-declare the template so nested sections (Settings, Metrics, ...) also
  // get the " | Warden" suffix; `default` titles the dashboard index itself.

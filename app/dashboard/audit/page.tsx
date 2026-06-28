@@ -7,7 +7,6 @@ import { Select, FIELD } from "@/app/_components/form";
 import { AuditTable } from "@/app/_components/audit-table";
 import { usePolled } from "@/app/_components/use-polled";
 import { actorLabel } from "@/app/_components/brand";
-import { LiveStatus } from "@/app/_components/live-status";
 import { humanizeType } from "@/lib/audit";
 
 type AuditResponse = { events: AuditRow[]; total: number; types: string[]; actors: string[] };
@@ -67,10 +66,7 @@ export default function AuditPage() {
 
  return (
  <div>
- <PageHeader
- title="audit log"
- aside={<LiveStatus />}
- />
+ <PageHeader title="audit log" />
 
  <PageBody>
  {error && events.length > 0 && (
