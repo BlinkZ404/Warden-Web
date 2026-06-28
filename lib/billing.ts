@@ -1,7 +1,7 @@
 /**
  * Managed-inference billing seam.
  *
- * In "managed" mode Warden runs the models itself and meters each agent run
+ * In "managed" mode Warden runs inference on the customer's behalf and meters each run
  * against the prepaid wallet at the selected model's published rate. In "byok"
  * mode the customer brought their own provider keys and is billed by the
  * provider directly, so Warden meters nothing. The mode is a saved setting so

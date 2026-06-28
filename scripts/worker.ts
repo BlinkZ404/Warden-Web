@@ -13,13 +13,21 @@
  * /api/orchestrator/tick is only a recovery safety-net; the logic (drainJobs)
  * is identical.
  */
+import { writeFile } from "node:fs/promises";
 import { drainJobs } from "@/lib/orchestrator/runner";
 import { closePool } from "@/lib/db/client";
 
 const once = process.argv.includes("--once");
 
+// Liveness signal for the container HEALTHCHECK. A completed drain means the DB
+// is reachable and the loop is turning; a hang or DB outage stops the writes, so
+// the heartbeat goes stale and the orchestrator restarts the worker. Best-effort:
+// a write failure (e.g. no /tmp on a dev box) must never crash the loop.
+const HEARTBEAT = "/tmp/warden-worker.alive";
+
 async function tick() {
   const { processed } = await drainJobs("worker-cli");
+  await writeFile(HEARTBEAT, String(Date.now())).catch(() => {});
   if (processed > 0) console.log(`[worker] processed ${processed} job(s)`);
 }
 

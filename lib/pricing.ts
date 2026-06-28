@@ -12,41 +12,29 @@ export const RATE_PER_RUN_USD = 0.018;
 /** Baseline time a solo founder would take to triage + fix a prod bug by hand. */
 export const BASELINE_MTTR_MIN = 90;
 
-/** Modelled cost of one outage minute for a small business (USD/min). */
-export const DOWNTIME_USD_PER_MIN = 150;
-
 /** Fully-loaded engineer cost (USD/hour). */
 export const ENG_HOURLY_USD = 110;
 
 export interface RoiModel {
- downtimeAvoidedUsd: number;
  hoursReclaimed: number;
- laborSavedUsd: number;
  valueDeliveredUsd: number;
 }
 
 /**
- * Derive the ROI figures from the fleet counts. `resolved` incidents are the
- * ones Warden carried to a verified, shipped fix; `timeToVerifiedSec` is the
- * mean detection→verified latency.
+ * ROI from the fleet counts. Deliberately LABOR-ONLY: each resolved incident
+ * would take a founder ~90 min to triage and fix by hand, so the value Warden
+ * delivers is that engineer time reclaimed. We do NOT model a speculative
+ * downtime $/min — multiplying a full-outage rate by time-saved-fixing inflates
+ * the headline far past anything defensible for a small app.
  */
-export function computeRoi(resolved: number, timeToVerifiedSec: number | null): RoiModel {
- const verifiedMin = (timeToVerifiedSec ?? 0) / 60;
- const minutesSaved = Math.max(0, BASELINE_MTTR_MIN - verifiedMin);
- const downtimeAvoidedUsd = resolved * minutesSaved * DOWNTIME_USD_PER_MIN;
+export function computeRoi(resolved: number): RoiModel {
  const hoursReclaimed = (resolved * BASELINE_MTTR_MIN) / 60;
- const laborSavedUsd = hoursReclaimed * ENG_HOURLY_USD;
- return {
- downtimeAvoidedUsd,
- hoursReclaimed,
- laborSavedUsd,
- valueDeliveredUsd: downtimeAvoidedUsd + laborSavedUsd,
- };
+ return { hoursReclaimed, valueDeliveredUsd: hoursReclaimed * ENG_HOURLY_USD };
 }
 
 /**
- * Managed-inference billing. Warden runs the models on its own infrastructure
- * (routed through a single gateway) so the customer never pastes a provider key.
+ * Managed-inference billing. Warden runs inference through a managed gateway, so
+ * the customer never pastes a provider key.
  * Each agent run is metered against a prepaid USD balance at the selected model's
  * published rate; the rate already includes Warden's margin over raw token cost.
  * A customer keeps a balance topped up the way they would fund any API account.

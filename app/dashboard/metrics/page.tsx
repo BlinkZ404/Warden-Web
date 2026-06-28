@@ -23,7 +23,6 @@ import {
  computeRoi,
  usd,
  BASELINE_MTTR_MIN,
- DOWNTIME_USD_PER_MIN,
  ENG_HOURLY_USD,
 } from "@/lib/pricing";
 
@@ -96,67 +95,65 @@ function FleetTiles({ fleet }: { fleet: FleetMetrics }) {
  {
  label: "Approval rate",
  value: pct(fleet.approvalRate),
- hint: `${fleet.approved} of ${fleet.reachedApproval} shipped`,
+ hint: `${fleet.approved} of ${fleet.reachedApproval} approved`,
  tone: "var(--color-ok)",
  },
  {
- label: "Change-failure rate",
+ label: "Revert rate",
  value: pct(fleet.revertRate),
- hint: `${fleet.reverted} of ${fleet.shipped} reverted · DORA Elite ≤15%`,
+ hint:
+ fleet.shipped > 0
+ ? `${fleet.reverted} of ${fleet.shipped} shipped fixes reverted`
+ : "nothing shipped yet",
  tone: fleet.revertWithinCeiling === false ? "var(--color-bad)" : "var(--color-ok)",
  },
  {
  label: "Time to verified",
  value: dur(fleet.timeToVerifiedSec),
- hint: `MTTR ${dur(fleet.mttrSec)} · ${fleet.resolved}/${fleet.totalIncidents} resolved`,
+ hint: "detected to verified fix",
  },
  ]}
  />
  );
 }
 
-/** Dollarized ROI: downtime avoided + engineer-hours reclaimed, vs Warden's fee. */
+/** Dollarized ROI: engineer time reclaimed, in money and hours. */
 function ValueDelivered({ fleet }: { fleet: FleetMetrics }) {
- const roi = computeRoi(fleet.resolved, fleet.timeToVerifiedSec);
+ const roi = computeRoi(fleet.resolved);
  return (
  <div>
  <div className="mb-2.5">
- <Label>value delivered</Label>
+ <Label>impact</Label>
  </div>
  <StatTiles
  tiles={[
  {
  label: "Value delivered",
  value: usd(roi.valueDeliveredUsd),
- hint: "downtime avoided + hours saved",
+ hint: "engineer time saved",
  tone: "var(--color-ok)",
- },
- {
- label: "Downtime avoided",
- value: usd(roi.downtimeAvoidedUsd),
- hint: `${fleet.resolved} fixes shipped before impact`,
  },
  {
  label: "Hours reclaimed",
  value: `${roi.hoursReclaimed.toFixed(1)}h`,
- hint: `${usd(roi.laborSavedUsd)} of on-call labor`,
+ hint: `across ${fleet.resolved} fixes`,
  },
  {
  label: "MTTR",
  value: dur(fleet.mttrSec),
- hint: "detected → closed",
+ hint: "detected to resolved",
  },
  ]}
  />
  <p className="mt-2 font-mono text-[10px] text-[var(--color-muted)]">
- Modelled: {BASELINE_MTTR_MIN}m baseline manual MTTR · {usd(DOWNTIME_USD_PER_MIN)}/downtime-min
- · {usd(ENG_HOURLY_USD)}/eng-hr. Assumptions, not a metered bill.
+ Modelled: {BASELINE_MTTR_MIN}m manual triage + fix · {usd(ENG_HOURLY_USD)}/eng-hr. Not a metered bill.
  </p>
  </div>
  );
 }
 
-/** The §10 kill-switch: post-ship revert rate against its ceiling. */
+/** The §10 kill-switch: post-ship revert rate against its ceiling. The current
+ * rate sits on the right; the verdict tints the card. */
 function KillSwitch({ fleet }: { fleet: FleetMetrics }) {
  const within = fleet.revertWithinCeiling;
  const color =
@@ -166,7 +163,7 @@ function KillSwitch({ fleet }: { fleet: FleetMetrics }) {
  ? "Revert rate above ceiling. Stop expanding fix scope."
  : within === true
  ? "Revert rate within ceiling. Safe to keep shipping."
- : "Nothing shipped yet. Kill-switch idle.";
+ : "No production deploys to track yet. Kill-switch idle.";
  return (
  <div className="relative">
  <div
@@ -185,7 +182,7 @@ function KillSwitch({ fleet }: { fleet: FleetMetrics }) {
  {headline}
  </div>
  <div className="mt-0.5 font-mono text-[11px] text-[var(--color-muted)]">
- kill-switch ceiling {Math.round(fleet.revertCeiling * 100)}% · current {pct(fleet.revertRate)}
+ kill-switch ceiling {Math.round(fleet.revertCeiling * 100)}%
  </div>
  </div>
  </div>
@@ -216,7 +213,7 @@ function Funnel({ fleet }: { fleet: FleetMetrics }) {
  <div className="space-y-2.5">
  {rows.map((r) => (
  <div key={r.label} className="flex items-center gap-3">
- <span className="w-32 shrink-0 font-mono text-[11px] uppercase tracking-wider text-[var(--color-muted)]">
+ <span className="w-24 shrink-0 font-mono text-[11px] uppercase tracking-wider text-[var(--color-muted)] sm:w-32">
  {r.label}
  </span>
  <div className="h-3 flex-1 overflow-hidden rounded-sm bg-[var(--color-panel-2)]">
@@ -235,7 +232,7 @@ function Funnel({ fleet }: { fleet: FleetMetrics }) {
  );
 }
 
-// Placeholder actor names from before the model-label fix; not worth a panel card.
+// Synthetic/internal actor ids that shouldn't get an agent card.
 const STALE_AGENTS = new Set(["openrouter", "agent", "codex", "system", "demo-script"]);
 
 function AgentCard({ a }: { a: AgentAccuracy }) {

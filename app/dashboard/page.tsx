@@ -2,10 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import type { IncidentRow } from "@/lib/view";
-import type { Metrics, FleetMetrics, AgentAccuracy } from "@/lib/repo/metrics";
+import type { Metrics, FleetMetrics } from "@/lib/repo/metrics";
 import {
  Frame,
- Plus,
  Label,
  StatTiles,
  PageHeader,
@@ -15,7 +14,6 @@ import {
  Banner,
 } from "@/app/_components/console";
 import { IncidentsTable } from "@/app/_components/incidents-table";
-import { actorLabel } from "@/app/_components/brand";
 import { pct, dur } from "@/lib/ui";
 
 interface Bug {
@@ -98,7 +96,6 @@ export default function Dashboard() {
  )}
  {loaded && incidents.length === 0 && <FirstRun bugs={bugs} firing={firing} onFire={fire} />}
  {metrics && <FleetPanel fleet={metrics.fleet} />}
- {metrics && <ScorecardStrip agents={metrics.agents} />}
 
  {!loaded ? (
  <div className="mt-7">
@@ -281,47 +278,5 @@ function FleetPanel({ fleet }: { fleet: FleetMetrics }) {
  },
  ]}
  />
- );
-}
-
-/**
- * Per-agent accuracy. Fixers show derived rates; reviewers show raw counts,
- * since the gate-pass / approval / regression credits land on the fixer.
- */
-function ScorecardStrip({ agents }: { agents: AgentAccuracy[] }) {
- if (agents.length === 0) return null;
- return (
- <div className="relative mt-4">
- <div className="grid grid-cols-2 gap-px border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-4">
- {agents.map((a) => (
- <div key={`${a.agent}-${a.role}`} className="bg-[var(--color-panel)] p-4">
- <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">
- {actorLabel(a.agent)} <span className="opacity-40">·</span> {a.role}
- </div>
- {a.role === "fixer" ? (
- <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs">
- <span className="text-[var(--color-ok)]">
- verified <b>{pct(a.verifyRate)}</b>
- </span>
- <span className="text-[var(--color-brand-2)]">
- approved <b>{pct(a.approvalRate)}</b>
- </span>
- <span className="text-[var(--color-bad)]">
- regress <b>{pct(a.regressionRate)}</b>
- </span>
- </div>
- ) : (
- <div className="mt-2 font-mono text-xs text-[var(--color-muted)]">
- reviews <b className="text-[var(--color-text)]">{a.attempts}</b>
- </div>
- )}
- </div>
- ))}
- </div>
- <Plus at="tl" />
- <Plus at="tr" />
- <Plus at="bl" />
- <Plus at="br" />
- </div>
  );
 }

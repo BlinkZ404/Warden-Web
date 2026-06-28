@@ -15,9 +15,8 @@
  * scope-limited path; it is NOT the autonomous data-mutation path that
  * `lib/policy/sql-guard.ts` fences off, so no carve-out there is required.
  *
- * In simulation the schema below is the source; in live mode the scanner would
- * read the Supabase management API / `information_schema` (a deferred live adapter,
- * like Sentry and Vercel).
+ * In simulation the schema below is the source; in live mode the scanner reads
+ * the Supabase management API / `information_schema` through a scope-limited adapter.
  */
 
 export type Severity = "critical" | "high" | "medium";

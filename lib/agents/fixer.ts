@@ -182,7 +182,7 @@ function makeCompatFixer(provider: CompatProvider, name = "agent"): Fixer {
   };
 }
 
-/** Native Anthropic Messages API. (Untested without keys.) */
+/** Native Anthropic Messages API, used when an Anthropic key is configured. */
 const liveFixer: Fixer = {
   name: "claude",
   async propose(ctx: FixerContext): Promise<FixProposal> {

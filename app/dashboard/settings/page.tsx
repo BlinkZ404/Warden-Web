@@ -210,7 +210,7 @@ export default function SettingsPage() {
  title="Guardrails"
  aside="blast-radius policy"
  onSave={() =>
- save("guardrails", ["POLICY_MAX_FILES", "POLICY_MAX_CHURN", "POLICY_DENY_GLOBS"])
+ save("guardrails", ["POLICY_MAX_FILES", "POLICY_MAX_CHURN", "FIX_MAX_ATTEMPTS", "POLICY_DENY_GLOBS"])
  }
  busy={saving === "guardrails"}
  >
@@ -229,6 +229,19 @@ export default function SettingsPage() {
  min={1}
  value={text("POLICY_MAX_CHURN", "120")}
  onChange={(e) => set("POLICY_MAX_CHURN", e.target.value)}
+ className={`${FIELD} sm:w-24`}
+ />
+ </Row>
+ <Row
+ label="Fix attempts"
+ hint="How many times Warden re-proposes after a reviewer rejection or a failed verification before escalating to you (1 initial + retries)."
+ >
+ <input
+ type="number"
+ min={1}
+ max={6}
+ value={text("FIX_MAX_ATTEMPTS", "3")}
+ onChange={(e) => set("FIX_MAX_ATTEMPTS", e.target.value)}
  className={`${FIELD} sm:w-24`}
  />
  </Row>

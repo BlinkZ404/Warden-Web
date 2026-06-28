@@ -56,7 +56,7 @@ const PIPELINE = [
  },
  {
  step: "Verify",
- body: "Warden spins up a preview, runs the app's real test suite, reproduces the original crash against the patched code, and checks that no new error signatures appeared. This gate is the real safety net.",
+ body: "The reviewers establish the fix is correct; this gate proves it is safe to ship. Warden runs the target's existing test suite as a regression check, replays the exact failing request to confirm the original error is gone, and watches for new error signatures. A test that was passing and now fails blocks; a target with no suite proceeds on the reviewers' verdict. Deterministic, and the real safety net.",
  },
  {
  step: "Approve",
@@ -74,7 +74,7 @@ const RUN_MODES = [
  { cap: "Embeddings", sim: "Local hashing vectorizer (deterministic)", live: "Embeddings API" },
  { cap: "Deploy / rollback", sim: "Recorded, plausible URLs", live: "Vercel API" },
  { cap: "Push delivery", sim: "Recorded as a notification event", live: "Web push (VAPID)" },
- { cap: "Verification gate", sim: "REAL: runs the target app's tests + reproduction", live: "REAL", emphasis: true },
+ { cap: "Verification gate", sim: "REAL: regression tests + request replay", live: "REAL", emphasis: true },
 ];
 
 const FAQ = [
@@ -219,9 +219,12 @@ export default function DocsPage() {
  ))}
  </div>
  <p className="mt-6">
- Any stage can branch to an off-ramp instead of advancing.{" "}
+ Under review or verifying can also loop back to{" "}
+ <code className="wd-code">fix_proposed</code>: an actionable rejection or a failed gate
+ sends the fix back for a bounded retry (operator-tunable, default three attempts) before
+ it gives up. Any stage can also branch to an off-ramp.{" "}
  <code className="wd-code">escalated</code> hands the incident to a human (low
- confidence, reviewer disagreement, or a failed gate).{" "}
+ confidence, reviewer disagreement, or an exhausted retry budget).{" "}
  <code className="wd-code">dismissed</code> is a human rejecting the fix, and{" "}
  <code className="wd-code">rolled_back</code> is an automatic revert after a post-deploy
  error spike.
@@ -246,13 +249,14 @@ export default function DocsPage() {
 
  <Section id="verification-gate" title="The verification gate">
  <p>
- This is the real safety net, and it stays real in both simulation and live mode. A fix
- only clears the gate when all three of these are true:
+ The reviewer panel establishes that the fix is correct; this deterministic gate then
+ confirms it is safe to ship, and it stays real in both simulation and live mode. A fix
+ clears the gate when:
  </p>
  <ul className="mt-5 space-y-3">
  {[
- ["The tests pass", "Warden runs the target app's real test suite against the patched code on a preview deploy."],
- ["The original error is gone", "It reproduces the exact crash that started the incident and confirms the patch stops it."],
+ ["Nothing regressed", "Warden runs the target's existing test suite against the patched code; a test that was passing and now fails blocks the fix. A target with no suite proceeds on the reviewers' verdict, never on a vacuous pass."],
+ ["The original error is gone", "It replays the exact failing request that started the incident and confirms the patch stops it."],
  ["No new errors appeared", "It checks that the fix did not introduce a new error signature somewhere else."],
  ].map(([t, d]) => (
  <li key={t} className="flex gap-3 rounded-lg border border-[var(--color-line)] bg-[color-mix(in_srgb,var(--color-panel)_55%,transparent)] p-4">
@@ -265,9 +269,11 @@ export default function DocsPage() {
  ))}
  </ul>
  <p className="mt-6">
- If any check fails, the incident escalates to a human rather than guessing. Agents
- have no standing deploy authority; only a human-written approval row moves an incident
- out of <code className="wd-code">awaiting_approval</code>.
+ If a check fails, Warden re-proposes the fix with the failure as feedback, bounded by a
+ small attempt budget (operator-tunable, default three), and escalates to a human once
+ the budget is spent rather than guessing. Agents have no standing deploy authority; only
+ a human-written approval row moves an incident out of{" "}
+ <code className="wd-code">awaiting_approval</code>.
  </p>
  </Section>
 

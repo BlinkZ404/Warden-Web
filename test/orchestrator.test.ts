@@ -6,11 +6,15 @@ import { advanceIncident, runIncidentToBoundary } from "@/lib/orchestrator/steps
 import { getIncident } from "@/lib/repo/incidents";
 import {
   latestFixAttempt,
+  countFixAttempts,
   createReview,
   createVerification,
   latestApproval,
 } from "@/lib/repo/artifacts";
 import { query } from "@/lib/db/client";
+import { listEvents } from "@/lib/repo/events";
+import { setSettings } from "@/lib/repo/settings";
+import { hydrateSettings } from "@/lib/runtime-config";
 import { getBugByKey } from "@/lib/sim/bugs";
 import { destroyWorkspace, workspaceExists } from "@/lib/adapters/workspace";
 
@@ -30,6 +34,7 @@ async function fire(key: string) {
 describe("orchestrator resumability + idempotency (M3)", () => {
   beforeEach(async () => {
     await resetDatabase();
+    await hydrateSettings(); // overlay reflects the (empty) settings table — default fix budget
   });
 
   it("resumes from the last persisted state with no duplicate artifacts", async () => {
@@ -86,7 +91,7 @@ describe("orchestrator resumability + idempotency (M3)", () => {
     await destroyWorkspace(incidentId);
   });
 
-  it("verification failure → escalated (the deterministic gate is the real gate)", async () => {
+  it("verification failure re-proposes while the attempt budget remains (sent back, never to approval)", async () => {
     const { incidentId } = await fire("checkout-missing-price");
 
     // Drive to `verifying` but stop before stepVerifying runs.
@@ -110,8 +115,47 @@ describe("orchestrator resumability + idempotency (M3)", () => {
 
     await advanceIncident(incidentId);
 
-    // It escalates and never reaches approval; no human tap can override a
-    // failed deterministic gate.
+    // With attempts left, the failed gate sends it back for a corrected re-proposal
+    // — never to the human gate. A revision event records the failure as feedback.
+    expect((await getIncident(incidentId))!.status).toBe("fix_proposed");
+    expect(await latestApproval(incidentId)).toBeNull();
+    const rev = (await listEvents(incidentId)).find((e) => e.type === "revision");
+    expect(rev).toBeTruthy();
+
+    // Driven to completion, the corrected second attempt verifies for real and
+    // reaches the human gate — the retry recovered the incident, not escalation.
+    await runIncidentToBoundary(incidentId);
+    expect((await getIncident(incidentId))!.status).toBe("awaiting_approval");
+    expect(await countFixAttempts(incidentId)).toBe(2);
+
+    await destroyWorkspace(incidentId);
+  });
+
+  it("verification failure escalates once the attempt budget is spent (the gate is a hard stop)", async () => {
+    await setSettings({ FIX_MAX_ATTEMPTS: "1" }); // no retry budget: the first failure is terminal
+    await hydrateSettings();
+    const { incidentId } = await fire("checkout-missing-price");
+
+    for (let i = 0; i < 20; i++) {
+      const s = (await getIncident(incidentId))!.status;
+      if (s === "verifying") break;
+      await advanceIncident(incidentId);
+    }
+    expect((await getIncident(incidentId))!.status).toBe("verifying");
+
+    const fa = await latestFixAttempt(incidentId);
+    await createVerification({
+      fix_attempt_id: fa!.id,
+      preview_url: "https://preview.example",
+      test_passed: false,
+      error_recurred: true,
+      new_errors: [],
+    });
+
+    await advanceIncident(incidentId);
+
+    // No attempts remain, so the failed deterministic gate escalates; no human tap
+    // can override it.
     expect((await getIncident(incidentId))!.status).toBe("escalated");
     expect(await latestApproval(incidentId)).toBeNull();
 

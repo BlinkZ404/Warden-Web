@@ -1,4 +1,15 @@
-import type { ReactNode } from "react";
+"use client";
+
+import {
+ Children,
+ isValidElement,
+ useEffect,
+ useId,
+ useRef,
+ useState,
+ type ReactNode,
+ type ReactElement,
+} from "react";
 import { Frame, Label, Button, ConnectionStatus } from "@/app/_components/console";
 import { Icon } from "@/app/_components/icons";
 import { Brand } from "@/app/_components/brand";
@@ -79,28 +90,112 @@ export function IntegrationRow({
  );
 }
 
-/** Native select with the browser chevron removed and a custom one centered, so
- * the text and arrow line up consistently across providers and browsers. */
+/** A custom dropdown that matches the box theme; the native <select> popup can't
+ * be styled. Keeps the <option>-children API and parses them into the menu, so
+ * call sites don't change. */
 export function Select({
  value,
  onChange,
  children,
  className = "",
+ "aria-label": ariaLabel,
 }: {
  value: string;
  onChange: (v: string) => void;
  children: ReactNode;
  className?: string;
+ "aria-label"?: string;
 }) {
+ const [open, setOpen] = useState(false);
+ const [active, setActive] = useState(0);
+ const ref = useRef<HTMLDivElement>(null);
+ const baseId = useId();
+
+ const options = Children.toArray(children)
+ .filter(isValidElement)
+ .map((c) => {
+ const el = c as ReactElement<{ value?: string | number; children?: ReactNode }>;
+ return { value: String(el.props.value ?? ""), label: el.props.children };
+ });
+ const currentIndex = options.findIndex((o) => o.value === value);
+ const current = options[currentIndex];
+
+ useEffect(() => {
+ if (!open) return;
+ function onDoc(e: MouseEvent) {
+ if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+ }
+ document.addEventListener("mousedown", onDoc);
+ return () => document.removeEventListener("mousedown", onDoc);
+ }, [open]);
+
+ // Keep the keyboard-highlighted option scrolled into view in a long menu.
+ useEffect(() => {
+ if (open) document.getElementById(`${baseId}-opt-${active}`)?.scrollIntoView({ block: "nearest" });
+ }, [active, open, baseId]);
+
+ function openMenu() {
+ setActive(currentIndex >= 0 ? currentIndex : 0);
+ setOpen(true);
+ }
+ function commit(i: number) {
+ const o = options[i];
+ if (o) onChange(o.value);
+ setOpen(false);
+ }
+
  return (
- <div className={`relative inline-block ${className}`}>
- <select
- value={value}
- onChange={(e) => onChange(e.target.value)}
- className="w-full appearance-none rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] py-2 pl-3 pr-9 font-mono text-xs text-[var(--color-text)] outline-none transition focus:border-[var(--color-accent)]"
+ <div ref={ref} className={`relative inline-block ${className}`}>
+ <button
+ type="button"
+ role="combobox"
+ aria-haspopup="listbox"
+ aria-expanded={open}
+ aria-controls={open ? `${baseId}-listbox` : undefined}
+ aria-label={ariaLabel}
+ aria-activedescendant={open ? `${baseId}-opt-${active}` : undefined}
+ onClick={() => (open ? setOpen(false) : openMenu())}
+ onBlur={(e) => {
+ if (e.relatedTarget && !ref.current?.contains(e.relatedTarget as Node)) setOpen(false);
+ }}
+ onKeyDown={(e) => {
+ switch (e.key) {
+ case "ArrowDown":
+ e.preventDefault();
+ if (!open) openMenu();
+ else setActive((a) => Math.min(options.length - 1, a + 1));
+ break;
+ case "ArrowUp":
+ e.preventDefault();
+ if (!open) openMenu();
+ else setActive((a) => Math.max(0, a - 1));
+ break;
+ case "Home":
+ if (open) {
+ e.preventDefault();
+ setActive(0);
+ }
+ break;
+ case "End":
+ if (open) {
+ e.preventDefault();
+ setActive(options.length - 1);
+ }
+ break;
+ case "Enter":
+ case " ":
+ e.preventDefault();
+ if (open) commit(active);
+ else openMenu();
+ break;
+ case "Escape":
+ setOpen(false);
+ break;
+ }
+ }}
+ className="flex w-full items-center justify-between gap-2 border border-[var(--color-line)] bg-[var(--color-panel-2)] px-3 py-2 font-mono text-xs text-[var(--color-text)] outline-none transition hover:border-[color-mix(in_srgb,var(--color-accent)_45%,var(--color-line))] focus:border-[var(--color-accent)]"
  >
- {children}
- </select>
+ <span className="truncate">{current?.label ?? ""}</span>
  <svg
  viewBox="0 0 24 24"
  width="14"
@@ -109,10 +204,35 @@ export function Select({
  stroke="currentColor"
  strokeWidth="2"
  aria-hidden
- className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)]"
+ className={`shrink-0 text-[var(--color-muted)] transition-transform ${open ? "rotate-180" : ""}`}
  >
  <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
  </svg>
+ </button>
+ {open && (
+ <div
+ id={`${baseId}-listbox`}
+ role="listbox"
+ aria-label={ariaLabel}
+ className="absolute inset-x-0 top-full z-30 mt-1 max-h-64 overflow-y-auto border border-[var(--color-line)] bg-[var(--color-panel)] shadow-lg"
+ >
+ {options.map((o, i) => (
+ <div
+ key={o.value}
+ id={`${baseId}-opt-${i}`}
+ role="option"
+ aria-selected={o.value === value}
+ onMouseEnter={() => setActive(i)}
+ onClick={() => commit(i)}
+ className={`cursor-pointer px-3 py-2 font-mono text-xs transition ${
+ i === active ? "bg-[color-mix(in_srgb,var(--color-accent)_16%,transparent)]" : ""
+ } ${o.value === value ? "text-[var(--color-brand-2)]" : "text-[var(--color-text)]"}`}
+ >
+ {o.label}
+ </div>
+ ))}
+ </div>
+ )}
  </div>
  );
 }
@@ -120,7 +240,7 @@ export function Select({
 /** The single input recipe. Stacked fields add their own `mt-1.5` over a label;
  * inline fields use it bare. One source of truth so inputs never drift. */
 export const FIELD =
- "w-full rounded-md border border-[var(--color-line)] bg-[var(--color-panel-2)] px-3 py-2 font-mono text-xs text-[var(--color-text)] outline-none transition focus:border-[var(--color-accent)]";
+ "w-full border border-[var(--color-line)] bg-[var(--color-panel-2)] px-3 py-2 font-mono text-xs text-[var(--color-text)] outline-none transition focus:border-[var(--color-accent)]";
 
 export function KeyField({
  label,

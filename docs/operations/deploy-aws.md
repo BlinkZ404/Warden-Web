@@ -20,8 +20,8 @@ application code changes to add the worker.
         clones repo · runs agents · verifies · opens PR ────┘
 ```
 
-> Prerequisite: Aurora is provisioned and migrated (see
-> [go-live.md](go-live.md) §1). The worker only needs to reach that same
+> Prerequisite: Aurora is provisioned and migrated (see the in-app **/docs →
+> "Going live"** guide, step 1). The worker only needs to reach that same
 > `DATABASE_URL`.
 
 ---
@@ -179,7 +179,11 @@ journalctl -u warden-worker -f
 ## Verify it is actually working
 
 1. **It is alive.** `docker logs` / `journalctl` shows
-   `[worker] polling for jobs every 2s`.
+   `[worker] polling for jobs every 2s`. The Docker image also self-reports
+   health: the worker touches `/tmp/warden-worker.alive` after each poll and the
+   built-in `HEALTHCHECK` marks the container unhealthy once that heartbeat goes
+   stale (~20s), so `docker inspect --format '{{.State.Health.Status}}'
+   warden-worker` should read `healthy`.
 2. **It reaches Aurora.** No `ECONNREFUSED` / TLS errors in the logs. A quick
    `npm run migrate` from the box (or any host with the same `DATABASE_URL`)
    should print `applied 0 new` against a migrated cluster.
@@ -200,8 +204,16 @@ same Aurora the UI writes to: re-check `DATABASE_URL` matches the dashboard's.
   to the Dockerfile's `apt-get` line (the bundled sample app is zero-dep, so the
   default image is enough for the demo).
 - **Managed billing.** With the provider keys in the worker's env and
-  `BILLING_MODE=managed`, the platform pays the model bills and meters each fix
-  from the prepaid wallet, so founders never paste an API key.
+  `BILLING_MODE=managed`, the platform pays the model bills and meters each agent
+  run from the prepaid wallet, so founders never paste an API key.
+- **The worker runs unprivileged.** The image drops to the non-root `node` user
+  (it clones and boots untrusted target-app code), and its `HEALTHCHECK` lets an
+  orchestrator (ECS, or a Docker `--restart` supervisor) replace a *hung* worker,
+  not just a crashed one.
+- **PR commit identity.** A delivered PR's commit is stamped with the
+  `GIT_AUTHOR_EMAIL` / `GIT_AUTHOR_NAME` dashboard settings (Settings, not this
+  `.env`). Set `GIT_AUTHOR_EMAIL` to a real GitHub-account email so the opened
+  PR's CI / preview checks recognize the author and run.
 - **The Vercel cron stays.** `vercel.json`'s daily GET of `/api/orchestrator/tick`
   is a safety-net that re-drains stuck jobs; the AWS worker is the real driver.
   Set `CRON_SECRET` so the tick is not callable by anyone.

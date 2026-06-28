@@ -149,7 +149,7 @@ describe("§13 acceptance: end to end (simulation mode)", () => {
     await drainJobs();
 
     expect((await getIncident(incidentId))!.status).toBe("escalated");
-    expect(await countFixAttempts(incidentId)).toBe(3); // MAX_FIX_ATTEMPTS
+    expect(await countFixAttempts(incidentId)).toBe(3); // maxFixAttempts() default
     // The last attempt never reached verification; nothing shipped.
     const fa = await latestFixAttempt(incidentId);
     expect(await latestVerification(fa!.id)).toBeNull();

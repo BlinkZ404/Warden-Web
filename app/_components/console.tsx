@@ -49,11 +49,56 @@ export function Button({
  );
 }
 
+/** Showing X-Y of N + Prev/Next, owning the page-bounds math so list pages don't
+ * each re-derive it. Renders nothing when there's no data. */
+export function Pager({
+ page,
+ pageSize,
+ total,
+ onPage,
+ className = "",
+}: {
+ page: number;
+ pageSize: number;
+ total: number;
+ onPage: (p: number) => void;
+ className?: string;
+}) {
+ if (total === 0) return null;
+ const start = page * pageSize + 1;
+ const end = Math.min((page + 1) * pageSize, total);
+ return (
+ <div className={`flex flex-wrap items-center justify-between gap-3 ${className}`}>
+ <span className="font-mono text-[11px] text-[var(--color-muted)]">
+ Showing {start}-{end} of {total}
+ </span>
+ <div className="flex items-center gap-2">
+ <Button
+ variant="secondary"
+ size="sm"
+ onClick={() => onPage(Math.max(0, page - 1))}
+ disabled={page === 0}
+ >
+ Prev
+ </Button>
+ <Button
+ variant="secondary"
+ size="sm"
+ onClick={() => onPage(page + 1)}
+ disabled={end >= total}
+ >
+ Next
+ </Button>
+ </div>
+ </div>
+ );
+}
+
 /** The page top bar: a semantic <h1> (kept in the console's lowercase-mono style)
  * plus a right-aligned, always-wrapping actions/aside slot. */
 export function PageHeader({ title, aside }: { title: ReactNode; aside?: ReactNode }) {
  return (
- <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-7 py-3.5">
+ <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-7">
  <h1 className="font-mono text-xs text-[var(--color-text)]">{title}</h1>
  {aside != null && <div className="flex flex-wrap items-center gap-3">{aside}</div>}
  </header>

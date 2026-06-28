@@ -1,69 +1,12 @@
 # Warden — architecture diagram
 
-The system diagram for the submission. With the Mermaid Chart plugin installed it
-renders inline in your editor; otherwise paste the block into <https://mermaid.live>
-to export a PNG/SVG.
+![Warden architecture diagram](../../public/architecture-diagram.png)
 
-Three planes, decoupled, coordinating only through Amazon Aurora:
+The submission diagram, built in draw.io. Three planes, decoupled, coordinating only through Amazon Aurora:
 
 - **① Vercel control plane** — serverless, enqueue-only (a function can't run git or boot apps).
 - **② Amazon Aurora** — the coordination layer and system of record.
 - **③ EC2 worker** — the stateless execution pipeline.
-
-```mermaid
-flowchart TB
-  classDef ext fill:#12151c,stroke:#5c6795,color:#e7eaf0
-  classDef cp fill:#0e1320,stroke:#3d4a7a,color:#cfe0ff
-  classDef db fill:#0d1f38,stroke:#2b6cb0,color:#cfe6ff
-  classDef agent fill:#15112a,stroke:#6b54c6,color:#ddd0ff
-  classDef gate fill:#1c1407,stroke:#9a7a1e,color:#ffe3a8
-  classDef human fill:#07251b,stroke:#2f9d6a,color:#b6f3d6
-
-  src([Sentry · CI · uptime]):::ext
-
-  subgraph CP["① Vercel control plane"]
-    direction LR
-    ingest["Ingest<br/>HMAC-verified<br/>de-duped"]:::cp
-    dash["Dashboard<br/>+ API"]:::cp
-  end
-
-  subgraph DB["② Amazon Aurora — system of record"]
-    direction LR
-    q[("Job queue<br/>SKIP-LOCKED")]:::db
-    sm[("Incident<br/>state machine")]:::db
-    log[("Append-only<br/>audit log")]:::db
-    vec[("pgvector memory<br/>+ scorecard")]:::db
-  end
-
-  subgraph EX["③ EC2 worker — the pipeline"]
-    direction TB
-    recall["Recall<br/>seen before?"]:::agent
-    inv["Investigator<br/>read-only"]:::agent
-    fix["Fixer<br/>patch on a branch"]:::agent
-    rev["Reviewer panel<br/>multi-lab consensus"]:::agent
-    gate{{"Verification gate<br/>verify, not review"}}:::gate
-    boot["Boot + replay<br/>the failing request"]:::gate
-    test["Run the<br/>test suite"]:::gate
-    smoke["Regression<br/>smoke battery"]:::gate
-    guard["Guardrails<br/>blast radius · reversible"]:::gate
-    recall --> inv --> fix --> rev --> gate --> boot --> test --> smoke --> guard
-    rev -.->|revise · up to 3| fix
-  end
-
-  appr(["Founder<br/>one-tap approval"]):::human
-  esc(["Escalate<br/>to a human"]):::human
-  pr["GitHub PR / merge<br/>+ provenance"]:::cp
-  cicd["Your CI/CD<br/>ships it"]:::cp
-
-  src -->|webhook| ingest
-  ingest -->|enqueue| q
-  EX <==>|state · audit · memory| DB
-  guard -->|within budget| appr
-  appr -->|approve| pr --> cicd
-  gate -. fails .-> esc
-  guard -. breach .-> esc
-  dash -. live view .-> sm
-```
 
 ## One-line narration (for the description / video)
 
@@ -107,15 +50,20 @@ the **deterministic verification gate** (boot and replay the failing request, ru
 the test suite, the smoke battery), which is objective. Agent agreement can never
 override a failed gate, and a passed gate still needs the panel not to dissent.
 
-**The fix-iterate loop.** When the panel dissents, Warden does not always hand off
-to a human. It checks whether the objection is **actionable** (today: an
-over-scoped patch that touched files unrelated to the error). If it is, and the
-attempt budget is not spent (`MAX_FIX_ATTEMPTS = 3`, one initial plus two
-revisions), the reviewer's notes are fed back to the Fixer (*"A previous attempt
-was rejected by review. Address this and keep the patch tightly scoped to ONLY
-&lt;file&gt;: ..."*), which re-proposes a tighter fix. A non-actionable objection
-(wrong file, a fundamental doubt) or an exhausted budget escalates immediately,
-rather than looping on something the Fixer cannot address.
+**The fix-iterate loop.** A rejection is not an automatic hand-off to a human. Two
+kinds of setback feed back into a corrected re-proposal under **one shared attempt
+budget**: an **actionable** reviewer objection (today: an over-scoped patch that
+touched files unrelated to the error), and a **failed verification** (a regression
+or a still-reproducing error). In either case the feedback is fed back to the Fixer
+(*"A previous attempt was rejected by review. Address this and keep the patch
+tightly scoped to ONLY &lt;file&gt;: ..."*, or the concrete gate failure), which
+re-proposes a tighter fix; the verification gate then runs again, so a bad fix never
+ships. The budget is operator-tunable: `maxFixAttempts()` reads the
+`FIX_MAX_ATTEMPTS` setting (Settings → Guardrails → "Fix attempts"), default 3 (one
+initial plus two retries), clamped 1–6. A non-actionable reviewer objection (wrong
+file, a fundamental doubt) escalates immediately rather than looping on something
+the Fixer cannot address, and once the budget is spent the incident escalates to a
+human.
 
 **Where model accuracy lives.** The agent **scorecard** in Aurora accumulates each
 model's success rate per role over time. It informs **role assignment** (which

@@ -3,6 +3,8 @@
 Warden is a **control plane** above commodity pieces (Sentry, Claude, OpenAI,
 Vercel). The product is the orchestration, the safety model, and the database, not any single integration.
 
+![Warden architecture diagram](../../public/architecture-diagram.png)
+
 ## Data flow
 
 ```mermaid
@@ -27,7 +29,7 @@ flowchart TB
  ORCH --> INV[Investigator<br/>read-only DB role]
  ORCH --> FIX[Fixer<br/>patch on a branch; no deploy]
  ORCH --> REV[Reviewer panel<br/>multi-lab cross-check]
- ORCH --> GATE[[verification gate<br/>tests + error-gone + no-new-errors]]
+ ORCH --> GATE[[verification gate<br/>no regressed test · error gone · no new errors]]
  ORCH --> DEP[Delivery<br/>GitHub PR / merge]
 
  GATE --> PUSH[Web push / Slack]
@@ -55,9 +57,11 @@ stateDiagram-v2
  investigating --> fix_proposed
  fix_proposed --> under_review
  under_review --> verifying: reviewer approves
- under_review --> escalated: disagreement (uncertain/reject)
+ under_review --> fix_proposed: actionable rejection (budget remaining)
+ under_review --> escalated: disagreement / budget spent
  verifying --> awaiting_approval: gate passes
- verifying --> escalated: gate fails
+ verifying --> fix_proposed: verification fails (budget remaining)
+ verifying --> escalated: gate fails / budget spent
  awaiting_approval --> approved: human approves
  awaiting_approval --> dismissed: human rejects
  approved --> deploying
@@ -69,6 +73,11 @@ stateDiagram-v2
  resolved --> [*]
  dismissed --> [*]
 ```
+
+Both `under_review` and `verifying` can loop back to `fix_proposed`: an actionable
+reviewer objection or a failed verification re-proposes with that feedback under
+one shared retry budget (`FIX_MAX_ATTEMPTS`, default 3 = 1 initial + 2 retries),
+and escalates to a human only once the budget is spent.
 
 ## The database is the product
 
@@ -90,7 +99,7 @@ Per-incident artifacts: `investigations`, `fix_attempts`, `reviews`,
 flowchart LR
  A[Agents propose] --> B[[verification gate<br/>REAL safety net]]
  A --> C[Consensus filter<br/>disagree → escalate]
- B --> D{All true?<br/>tests pass · error gone · no new errors}
+ B --> D{All true?<br/>no test regressed · error gone · no new errors}
  C --> D
  D -->|yes| E[Human gate<br/>consent, not correctness]
  D -->|no| F[escalate / fail]
@@ -103,7 +112,11 @@ flowchart LR
 
 - Agents have **no standing deploy authority**. Only a human-written `approvals`
  row moves an incident out of `awaiting_approval`.
-- Deterministic verification is the real gate; agent agreement is only a filter.
+- Deterministic verification is the real gate, run as a regression check: the
+ reviewer panel proves the fix is correct, then the target's existing suite
+ confirms nothing previously green now fails (a previously-passing test that now
+ fails blocks; no suite → proceed on the review) and request-replay confirms the
+ original error is gone. Agent agreement is only a filter.
 - Investigation uses a **read-only** DB connection (`readOnlyQuery`); writes
  there throw. Deploy credentials never reach the model.
 - Every production change is reversible (Vercel instant rollback).

@@ -1,7 +1,7 @@
 /**
  * Generic OpenAI-compatible chat client. Lets any agent run on any provider that
  * speaks the OpenAI /chat/completions API (DeepSeek, GLM/Z.ai/Zhipu, OpenAI,
- * OpenRouter, Together, a local Ollama, etc.), purely via config (base URL + key
+ * Together, a local Ollama, etc.), purely via config (base URL + key
  * + model). This is the vendor-neutral agent seam (PLAN §3/§15) made real.
  */
 import { openaiText, extractJson } from "@/lib/agents/json";

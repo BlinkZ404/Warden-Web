@@ -51,8 +51,8 @@ const simInvestigator: Investigator = {
           errorType: bug.errorType,
           errorMessage: bug.errorMessage,
           culpritFile: bug.culpritFile,
-          // The reproduction descriptor the gate replays (live seam: this is
-          // what an event-extraction step would populate from a Sentry frame).
+          // The reproduction descriptor the gate replays (live, the event-
+          // extraction step populates it from the Sentry frame).
           ...(bug.repro ? { repro: bug.repro } : {}),
           source: "sentry-mcp (simulated)",
         },
@@ -93,7 +93,7 @@ function makeCompatInvestigator(provider: CompatProvider, name = "agent"): Inves
   };
 }
 
-/** Native Anthropic Messages API. (Untested without keys.) */
+/** Native Anthropic Messages API, used when an Anthropic key is configured. */
 const liveInvestigator: Investigator = {
   name: "claude",
   async investigate(incident, sentry): Promise<InvestigationResult> {

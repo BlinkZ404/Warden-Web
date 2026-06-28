@@ -73,6 +73,7 @@ import {
   autoApprove,
   bootConfig,
   deliveryMode,
+  maxFixAttempts,
 } from "@/lib/runtime-config";
 import { deliverFix } from "@/lib/adapters/github-deliver";
 import { targetRepoUrl } from "@/lib/adapters/github-repo";
@@ -84,10 +85,27 @@ import { getBugByFingerprint } from "@/lib/sim/bugs";
 
 const MIN_CONFIDENCE = 0.5; // §5.8: when uncertain, escalate; don't guess.
 
-// The fix-iterate loop's bound: how many times the Fixer may re-propose after a
-// reviewer rejection before the incident escalates to a human (1 initial + 2
-// revisions). Keeps the loop from churning or burning cost indefinitely.
-const MAX_FIX_ATTEMPTS = 3;
+/** Concrete, fixer-actionable feedback distilled from a FAILED verification, so a
+ *  regression or a still-reproducing error gets a corrected re-proposal instead of
+ *  escalating straight to a human. */
+function verifyFailureNotes(v: {
+  test_passed: boolean | null;
+  error_recurred: boolean | null;
+  new_errors: unknown;
+}): string[] {
+  const notes: string[] = [];
+  if (!v.test_passed)
+    notes.push(
+      "The change broke a test that was passing — keep the fix tightly scoped to the implicated code so the existing suite stays green.",
+    );
+  if (v.error_recurred)
+    notes.push("The original error still reproduces after the change — the fix did not actually resolve it.");
+  const newErrors = (v.new_errors as unknown[] | null) ?? [];
+  if (newErrors.length)
+    notes.push(`The change introduced new failures: ${newErrors.map(String).join("; ")}.`);
+  if (notes.length === 0) notes.push("Verification did not pass; re-propose a corrected fix.");
+  return notes;
+}
 
 /**
  * The reviewer panel's objection, but only if it is one the Fixer can ACT on.
@@ -253,11 +271,20 @@ async function stepInvestigating(incident: Incident) {
 
 async function stepFixProposed(incident: Incident) {
   let fa = await latestFixAttempt(incident.id);
-  // A revision is needed when the latest attempt was already reviewed and
-  // rejected (we looped back from under_review to tighten the fix). Once the new
-  // attempt is created it has no reviews, so re-running this step is idempotent.
+  // A revision is needed when the latest attempt was sent back — either the panel
+  // rejected it, or it failed the verification gate. After a fresh attempt (no
+  // reviews, no verification) re-running this step is idempotent.
   const priorReviews = fa ? await listReviews(fa.id) : [];
-  const revising = fa != null && priorReviews.some((r) => r.verdict !== "approve");
+  const reviewRejected = priorReviews.some((r) => r.verdict !== "approve");
+  const lastVer = fa ? await latestVerification(fa.id) : null;
+  const verifyFailed =
+    lastVer != null &&
+    !verificationGate({
+      test_passed: !!lastVer.test_passed,
+      error_recurred: !!lastVer.error_recurred,
+      new_errors: (lastVer.new_errors as unknown[]) ?? [],
+    }).pass;
+  const revising = fa != null && (reviewRejected || verifyFailed);
   if (!fa || revising) {
     const inv = await latestInvestigation(incident.id);
     if (!inv) throw new Error("fix step: investigation missing");
@@ -266,9 +293,12 @@ async function stepFixProposed(incident: Incident) {
     let revision: FixRevision | undefined;
     if (revising) {
       // Reset to production state so the re-proposal starts clean (drops whatever
-      // the reviewer objected to), then re-propose with the feedback.
+      // review or verification objected to), then re-propose with the feedback.
       await prepareWorkspace(incident.id, getBugByFingerprint(incident.fingerprint));
-      revision = { attempt: priorReviews.length, notes: actionableFeedback(priorReviews).notes };
+      const notes = reviewRejected
+        ? actionableFeedback(priorReviews).notes
+        : verifyFailureNotes(lastVer!);
+      revision = { attempt: priorReviews.length, notes };
     } else {
       await ensureMainWorkspace(incident); // rebuild if a reclaimed job lost the disk
     }
@@ -394,7 +424,7 @@ async function stepUnderReview(incident: Incident) {
     // reviewer filter, it never ships on agreement.
     const attempts = await countFixAttempts(incident.id);
     const fb = actionableFeedback(reviews);
-    if (fb.actionable && attempts < MAX_FIX_ATTEMPTS) {
+    if (fb.actionable && attempts < maxFixAttempts()) {
       await logEvent(incident.id, "revision", "system", {
         attempt: attempts,
         reason: "reviewer flagged an over-scoped fix; re-proposing with the feedback",
@@ -405,7 +435,7 @@ async function stepUnderReview(incident: Incident) {
     }
     await transition(incident.id, "escalated", "system", {
       reason:
-        attempts >= MAX_FIX_ATTEMPTS
+        attempts >= maxFixAttempts()
           ? `${consensus.reason}; escalated after ${attempts} attempts`
           : consensus.reason,
     });
@@ -539,11 +569,25 @@ async function stepVerifying(incident: Incident) {
   });
 
   if (!gate.pass) {
+    // A failed verification is concrete, actionable feedback. While attempts
+    // remain, re-propose with the failure as feedback instead of escalating — the
+    // gate runs again on the next attempt, so a bad fix never ships; the human is
+    // pulled in only once the budget is spent.
+    const attempts = await countFixAttempts(incident.id);
+    if (attempts < maxFixAttempts()) {
+      await logEvent(incident.id, "revision", "system", {
+        attempt: attempts,
+        reason: `verification failed: ${gate.reasons.join("; ")}; re-proposing with the failure as feedback`,
+        notes: verifyFailureNotes(v),
+      });
+      await transition(incident.id, "fix_proposed", "system", { revision: attempts });
+      return;
+    }
     await escalateGate(
       incident.id,
       "verification",
       gate.reasons,
-      `verification failed: ${gate.reasons.join("; ")}`,
+      `verification failed: ${gate.reasons.join("; ")}; escalated after ${attempts} attempts`,
     );
     return;
   }

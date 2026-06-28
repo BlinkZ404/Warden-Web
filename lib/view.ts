@@ -134,16 +134,78 @@ export interface AuditRow {
   incident_title: string;
 }
 
+export interface AuditFeedQuery {
+  limit: number;
+  offset: number;
+  type?: string;
+  actor?: string;
+  q?: string;
+}
+
+export interface AuditFeedPage {
+  rows: AuditRow[];
+  /** Count of rows matching the filters (drives the pager), not the page size. */
+  total: number;
+  /** Distinct event types and actors across the whole log, for the filter menus. */
+  types: string[];
+  actors: string[];
+}
+
 /** The global audit feed: every event across all incidents, newest first, with
- *  the incident title joined for the cross-incident log view. */
-export async function listAuditFeed(limit = 200): Promise<AuditRow[]> {
-  return query<AuditRow>(
-    `SELECT e.id::text, e.type, e.actor, e.payload, e.created_at,
-            e.incident_id::text, COALESCE(i.title, '') AS incident_title
-       FROM events e
-       LEFT JOIN incidents i ON i.id = e.incident_id
-      ORDER BY e.id DESC
-      LIMIT $1`,
-    [limit],
-  );
+ *  the incident title joined for the cross-incident log view. Filtering (type,
+ *  actor, free-text over the title/actor/type/payload) and paging run in SQL so
+ *  the page stays bounded as the log grows; `total` drives the pager and
+ *  `types`/`actors` populate the filter menus. */
+export async function listAuditFeed(opts: AuditFeedQuery): Promise<AuditFeedPage> {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (opts.type) {
+    params.push(opts.type);
+    clauses.push(`e.type = $${params.length}`);
+  }
+  if (opts.actor) {
+    params.push(opts.actor);
+    clauses.push(`e.actor = $${params.length}`);
+  }
+  if (opts.q) {
+    // Escape LIKE wildcards so a literal % or _ in the query stays literal.
+    const esc = opts.q.replace(/[\\%_]/g, "\\$&");
+    params.push(`%${esc}%`);
+    const i = params.length;
+    clauses.push(
+      `(COALESCE(i.title, '') ILIKE $${i} OR e.actor ILIKE $${i} OR e.type ILIKE $${i} OR e.payload::text ILIKE $${i})`,
+    );
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+
+  // The four reads are independent — none consumes another's result — so run them
+  // concurrently to pay one round-trip's latency, not four (this feed is polled).
+  const [rows, totals, typeRows, actorRows] = await Promise.all([
+    query<AuditRow>(
+      `SELECT e.id::text, e.type, e.actor, e.payload, e.created_at,
+              e.incident_id::text, COALESCE(i.title, '') AS incident_title
+         FROM events e
+         LEFT JOIN incidents i ON i.id = e.incident_id
+         ${where}
+        ORDER BY e.id DESC
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, opts.limit, opts.offset],
+    ),
+    query<{ n: number }>(
+      `SELECT count(*)::int AS n
+         FROM events e
+         LEFT JOIN incidents i ON i.id = e.incident_id
+         ${where}`,
+      params,
+    ),
+    query<{ type: string }>(`SELECT DISTINCT type FROM events ORDER BY type`),
+    query<{ actor: string }>(`SELECT DISTINCT actor FROM events ORDER BY actor`),
+  ]);
+
+  return {
+    rows,
+    total: totals[0]?.n ?? 0,
+    types: typeRows.map((r) => r.type),
+    actors: actorRows.map((r) => r.actor),
+  };
 }

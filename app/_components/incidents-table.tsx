@@ -1,9 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { IncidentRow } from "@/lib/view";
+import type { IncidentStatus } from "@/lib/db/types";
 import { StatusBadge } from "@/app/_components/ui";
+import { Select, FIELD } from "@/app/_components/form";
+import { Pager } from "@/app/_components/console";
 import { relativeTime, statusMeta } from "@/lib/ui";
 
 type SortKey = "incident" | "status" | "review" | "tests" | "memory" | "updated";
@@ -26,6 +29,8 @@ const COLUMNS: Column[] = [
  { key: "updated", label: "Updated", className: "w-24 shrink-0", initial: "desc" },
 ];
 
+const PAGE_SIZE = 20;
+
 /** Comparable numeric/string key per sortable column. */
 function sortValue(i: IncidentRow, key: SortKey): number | string {
  switch (key) {
@@ -45,15 +50,28 @@ function sortValue(i: IncidentRow, key: SortKey): number | string {
 }
 
 /**
- * The incidents list: free-text search, sortable columns, and a per-row expander
- * that surfaces the signals inline without leaving the page. Built on the same
- * sort/expand interaction model as the audit table so the two read alike.
+ * The incidents list: free-text search, a status filter, sortable columns, a
+ * per-row expander, and paging. Built on the same sort/expand interaction model
+ * as the audit table so the two read alike.
  */
 export function IncidentsTable({ incidents }: { incidents: IncidentRow[] }) {
  const [q, setQ] = useState("");
+ const [status, setStatus] = useState("");
  const [sort, setSort] = useState<SortKey>("updated");
  const [dir, setDir] = useState<Dir>("desc");
+ const [page, setPage] = useState(0);
  const [open, setOpen] = useState<Set<string>>(new Set());
+
+ // Any change to the filters or sort returns to the first page.
+ useEffect(() => setPage(0), [q, status, sort, dir]);
+
+ // Always include the active filter, so a status that ages out of the live list
+ // still shows on the control (and stays clearable) instead of blanking it.
+ const statuses = useMemo(() => {
+ const set = new Set(incidents.map((i) => i.status));
+ if (status) set.add(status as IncidentStatus);
+ return [...set].sort();
+ }, [incidents, status]);
 
  function toggle(id: string) {
  setOpen((s) => {
@@ -74,13 +92,14 @@ export function IncidentsTable({ incidents }: { incidents: IncidentRow[] }) {
 
  const rows = useMemo(() => {
  const needle = q.trim().toLowerCase();
- const filtered = needle
- ? incidents.filter((i) =>
- [i.title, i.service ?? "", statusMeta(i.status).label]
+ const filtered = incidents.filter((i) => {
+ if (status && i.status !== status) return false;
+ if (!needle) return true;
+ return [i.title, i.service ?? "", statusMeta(i.status).label]
  .join(" ")
  .toLowerCase()
- .includes(needle))
- : incidents;
+ .includes(needle);
+ });
  const mul = dir === "asc" ? 1 : -1;
  return [...filtered].sort((a, b) => {
  const av = sortValue(a, sort);
@@ -89,20 +108,43 @@ export function IncidentsTable({ incidents }: { incidents: IncidentRow[] }) {
  if (av > bv) return 1 * mul;
  return 0;
  });
- }, [incidents, q, sort, dir]);
+ }, [incidents, q, status, sort, dir]);
+
+ const total = rows.length;
+
+ // Clamp to the last page when the live list shrinks, so the pager never strands
+ // the view on an out-of-range, empty page.
+ useEffect(() => {
+ const last = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+ if (page > last) setPage(last);
+ }, [total, page]);
+
+ const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+ const filtering = Boolean(q || status);
 
  return (
  <div className="font-mono text-[11px]">
- <div className="flex flex-wrap items-center gap-3 border-b border-[var(--color-line)] px-4 py-2.5">
+ <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-line)] px-4 py-2.5">
+ <div className="min-w-[180px] flex-1">
  <input
  value={q}
  onChange={(e) => setQ(e.target.value)}
  placeholder="search incidents…"
- className="w-56 max-w-full rounded border border-[var(--color-line)] bg-[var(--color-panel-2)] px-2.5 py-1.5 text-xs text-[var(--color-text)] placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none"
+ aria-label="Search incidents by title, service, or status"
+ className={FIELD}
  />
- {q && (
- <span className="text-[10px] text-[var(--color-muted)]">
- {rows.length} of {incidents.length}
+ </div>
+ <Select value={status} onChange={setStatus} className="min-w-[150px]" aria-label="Filter by status">
+ <option value="">All statuses</option>
+ {statuses.map((s) => (
+ <option key={s} value={s}>
+ {statusMeta(s).label}
+ </option>
+ ))}
+ </Select>
+ {filtering && (
+ <span className="shrink-0 text-[10px] text-[var(--color-muted)]">
+ {total} of {incidents.length}
  </span>
  )}
  </div>
@@ -125,13 +167,13 @@ export function IncidentsTable({ incidents }: { incidents: IncidentRow[] }) {
  ))}
  </div>
 
- {rows.length === 0 && (
+ {pageRows.length === 0 && (
  <div className="px-4 py-10 text-center text-[var(--color-muted)]">
  {incidents.length === 0 ? "No incidents yet. Trigger one above." : "No matches"}
  </div>
  )}
 
- {rows.map((i) => {
+ {pageRows.map((i) => {
  const isOpen = open.has(i.id);
  return (
  <div key={i.id} className="border-t border-[var(--color-line)] first:border-t-0">
@@ -224,6 +266,14 @@ export function IncidentsTable({ incidents }: { incidents: IncidentRow[] }) {
  })}
  </div>
  </div>
+
+ <Pager
+ page={page}
+ pageSize={PAGE_SIZE}
+ total={total}
+ onPage={setPage}
+ className="border-t border-[var(--color-line)] px-4 py-2.5"
+ />
  </div>
  );
 }

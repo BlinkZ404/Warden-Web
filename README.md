@@ -1,13 +1,24 @@
-# Warden
+<div align="center">
+
+<br />
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/logo.png">
+  <img alt="Warden" src="public/logo-light.png" width="480">
+</picture>
+
+**The on-call engineer you don't have.**
 
 [![Stack](https://img.shields.io/badge/Stack-Next.js%2016-000000?logo=nextdotjs&logoColor=white&labelColor=30363d)](#tech-stack)
 [![Database](https://img.shields.io/badge/Database-Amazon%20Aurora-232F3E?logo=amazonaws&logoColor=white&labelColor=30363d)](#why-aurora)
 [![Hosting](https://img.shields.io/badge/Hosting-Vercel%20%2B%20AWS-000000?logo=vercel&logoColor=white&labelColor=30363d)](#tech-stack)
 [![License](https://img.shields.io/badge/License-Proprietary-6e7681?labelColor=30363d)](#license--credits)
 
-> The on-call engineer you don't have. Warden catches a production error, finds the root cause, writes the fix, **proves** it, and ships a pull request. The founder just taps approve.
+**Live:** [warden-web-beta.vercel.app](https://warden-web-beta.vercel.app)
 
-**Live:** https://warden-web-beta.vercel.app
+</div>
+
+> Warden catches a production error, finds the root cause, writes the fix, **proves** it, and ships a pull request. The founder just taps approve.
 
 ## Overview
 
@@ -17,13 +28,17 @@ Warden is an autonomous on-call engineer for the millions of people shipping app
 2. **Investigate:** Warden reads the error, the stack, and the implicated code, read-only.
 3. **Fix:** a model writes a patch on a fresh branch in a per-incident workspace.
 4. **Review:** an independent panel of models from different labs cross-checks the diff, and they have to agree.
-5. **Verify:** Warden boots the app, replays the exact failing request, and confirms the error is gone with tests still green. Nothing ships on a model's say-so.
+5. **Verify:** Warden replays the exact failing request to confirm the original error is gone, then re-runs the target's existing tests as a regression check so the fix can't break what was passing. Nothing ships on a model's say-so.
 6. **Approve:** the founder gets a one-tap approval (web, push, or Slack). Approval is consent to ship, not a code review.
 7. **Deliver:** Warden opens a pull request (or merges) on the linked repo, and the team's existing CI/CD ships it.
 
 Every step is written to an append-only audit log, and Warden recognizes errors it has seen before via vector search. It runs in **simulation** mode (fully offline and deterministic) or **live** mode against real services.
 
 The app and its APIs run on **Vercel**; the pipeline engine runs on an **AWS EC2** worker; and both coordinate through a single **Amazon Aurora** database, which holds the job queue, the incident state machine, the audit log, vector memory, and runtime settings.
+
+<p align="center">
+  <img src="public/architecture-diagram.png" alt="Warden architecture: the user and Sentry feed a Vercel control plane; an AWS EC2 worker runs the Investigate, Fix, Review, Verify, Await approval, Deliver pipeline and coordinates through Amazon Aurora; delivery is a GitHub pull request, with auto-rollback on a production error spike." width="900">
+</p>
 
 ## Tech Stack
 

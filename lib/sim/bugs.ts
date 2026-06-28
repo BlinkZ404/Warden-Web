@@ -41,14 +41,14 @@ export interface SeededBug {
    * `export`) + captured request (the positional `args`) yields. When present,
    * the gate reproduces the error via reproduce.js `--call` mode instead of a
    * named scenario, exercising the engine that live incidents will use. In sim
-   * it's sourced from this catalog; live event-extraction is still pending.
+   * it's sourced from this catalog; live, it is derived from the Sentry event.
    */
   repro?: { module: string; export: string; args: unknown[] };
   /**
    * Known-good inputs for the no-new-errors smoke battery (§5.3, AUDIT H4): the
    * culprit export is replayed on each after the fix, and any that now throw is a
    * regression the fix introduced. Only used alongside a generic `repro`
-   * descriptor; sim-only (live smoke-test generation is the follow-up).
+   * descriptor; these seeded inputs are the sim path, synthesized live.
    */
   smokeInputs?: unknown[];
   /** Turns correct code → buggy (production state). */
@@ -152,9 +152,10 @@ export const SEEDED_BUGS: SeededBug[] = [
     fix: { file: "src/discount.js", find: DISCOUNT_BAD, replace: DISCOUNT_GOOD },
   },
   {
-    // Same root cause as the checkout bug, but the simulated Fixer produces an
-    // over-scoped patch (also edits an unrelated file). Used to demonstrate the
-    // Reviewer catching it and the incident escalating rather than shipping.
+    // Same root cause as the checkout bug, but the simulated Fixer's first patch
+    // is over-scoped (it also edits an unrelated file). Used to demonstrate the
+    // Reviewer catching it and the bounded retry loop re-proposing a tighter fix
+    // that ships, rather than escalating.
     key: "checkout-missing-price-risky",
     fingerprint: "checkout-service/computeCheckoutTotal/TypeError-amount-risky",
     title: "TypeError in checkout (risky-fix scenario)",
@@ -164,7 +165,7 @@ export const SEEDED_BUGS: SeededBug[] = [
     errorMessage: "Cannot read properties of undefined (reading 'amount')",
     culpritFile: "src/checkout.js",
     rootCause:
-      "Same as the checkout TypeError, used to exercise the disagreement → escalation path when a fix is over-scoped.",
+      "Same as the base checkout TypeError: computeCheckoutTotal reads `.amount` off a cart line that can be missing a price.",
     fixSummary:
       "Guard missing prices (but the patch also touches an unrelated file, which the Reviewer flags).",
     reproScenario: "checkout-missing-price",

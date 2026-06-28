@@ -56,6 +56,14 @@ export function gitAuthor(): { email: string; name: string } {
  };
 }
 
+/** How many times the fixer may propose a fix before escalating to a human —
+ *  across BOTH reviewer rejections and verification failures (1 initial + the
+ *  rest as retries). Operator-tunable; defaults to 3, clamped to 1..6. */
+export function maxFixAttempts(): number {
+ const n = parseInt(setting("FIX_MAX_ATTEMPTS", "3"), 10);
+ return Number.isFinite(n) && n >= 1 && n <= 6 ? n : 3;
+}
+
 /**
  * Resolve a role's `"<providerId>::<modelId>"` assignment plus that provider's
  * saved API key into an OpenAI-compatible provider. Returns null when the role
