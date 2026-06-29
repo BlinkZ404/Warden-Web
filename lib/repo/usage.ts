@@ -52,7 +52,7 @@ export async function computeUsage(): Promise<Usage> {
  SELECT
  (SELECT count(*)::int FROM incidents) AS incidents,
  (SELECT count(*)::int FROM incidents WHERE status = 'resolved') AS resolved,
- (SELECT count(*)::int FROM deployments WHERE promoted_at IS NOT NULL) AS shipped,
+ (SELECT count(*)::int FROM incidents WHERE status IN ('resolved', 'rolled_back')) AS shipped,
  (SELECT count(*)::int FROM events WHERE type = 'agent_action') AS agent_runs,
  (SELECT count(*)::int FROM events) AS events
  `),

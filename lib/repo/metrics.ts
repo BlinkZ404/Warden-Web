@@ -38,9 +38,9 @@ export interface FleetMetrics {
   reachedApproval: number;
   /** Distinct incidents that reached `escalated`. */
   escalated: number;
-  /** Deployments promoted to production. */
+  /** Fixes that reached production: resolved (held) or rolled_back (shipped then reverted). */
   shipped: number;
-  /** Promoted deployments later reverted (auto-rollback OR human one-tap). */
+  /** Shipped fixes later reverted (auto-rollback OR human one-tap). */
   reverted: number;
   /** Distinct incidents a human approved. */
   approved: number;
@@ -122,8 +122,8 @@ export async function computeMetrics(): Promise<Metrics> {
            AND payload->>'to' IN ('awaiting_approval', 'escalated'))           AS decided,
       (SELECT count(DISTINCT incident_id)::int FROM approvals
          WHERE decision = 'approve')                                           AS approved,
-      (SELECT count(*)::int FROM deployments WHERE promoted_at IS NOT NULL)    AS shipped,
-      (SELECT count(*)::int FROM deployments WHERE rolled_back)                AS reverted,
+      (SELECT count(*)::int FROM incidents WHERE status IN ('resolved', 'rolled_back')) AS shipped,
+      (SELECT count(*)::int FROM incidents WHERE status = 'rolled_back')        AS reverted,
       (SELECT (avg(extract(epoch FROM (fp.passed_at - i.created_at))))::float8
          FROM (
            SELECT fa.incident_id, min(v.checked_at) AS passed_at

@@ -4,13 +4,13 @@ import { useState } from "react";
 import { brandKeyForModelId, labelForModelId } from "@/lib/models";
 import { Icon } from "@/app/_components/icons";
 
-const BRANDS: Record<string, { domain?: string; label: string; color: string }> = {
+const BRANDS: Record<string, { domain?: string; icon?: string; label: string; color: string }> = {
  claude: { domain: "anthropic.com", label: "Claude", color: "#d97757" },
  openai: { domain: "openai.com", label: "OpenAI", color: "#10a37f" },
  codex: { domain: "openai.com", label: "OpenAI", color: "#10a37f" },
  gemini: { domain: "gemini.google.com", label: "Gemini", color: "#4285f4" },
  grok: { domain: "grok.com", label: "Grok", color: "#e7eaf0" },
- zai: { domain: "z.ai", label: "Z.ai", color: "#5c6795" },
+ zai: { icon: "/brands/zai.svg", label: "Z.ai", color: "#5c6795" },
  cursor: { domain: "cursor.com", label: "Cursor", color: "#e7eaf0" },
  minimax: { domain: "minimax.io", label: "MiniMax", color: "#f5455c" },
  kimi: { domain: "moonshot.ai", label: "Kimi", color: "#7c4dff" },
@@ -81,12 +81,16 @@ export function Brand({ actor, size = 16 }: { actor: string; size?: number }) {
  const key = base.includes("/") ? brandKeyForModelId(base) : baseKey;
  const brand = BRANDS[key];
  const color = brand?.color ?? "#5c6795";
+ // Prefer an explicit icon (for sites Google's favicon service can't resolve);
+ // otherwise derive one from the brand domain.
+ const iconSrc =
+ brand?.icon ?? (brand?.domain ? `https://www.google.com/s2/favicons?domain=${brand.domain}&sz=64` : null);
 
- if (brand?.domain && !err) {
+ if (iconSrc && !err) {
  return (
  // eslint-disable-next-line @next/next/no-img-element
  <img
- src={`https://www.google.com/s2/favicons?domain=${brand.domain}&sz=64`}
+ src={iconSrc}
  width={size}
  height={size}
  alt=""
