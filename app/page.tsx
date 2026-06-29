@@ -102,7 +102,7 @@ export default function Home() {
  Autonomous on-call engineer
  </span>
 
- <h1 className="mt-6 text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-[3.5rem]">
+ <h1 className="mt-6 text-3xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-[3.5rem]">
  <span className="block text-[var(--color-text)]">The on-call engineer</span>
  <span className="block bg-gradient-to-r from-[var(--color-brand-2)] via-[var(--color-spark)] to-[var(--color-brand-2)] bg-clip-text text-transparent">
  you don&apos;t have.
@@ -200,7 +200,7 @@ function StripRow({
  {providers.map(({ name, Mark }) => (
  <div
  key={name}
- className="group relative flex flex-1 items-center justify-center gap-2.5 border-l border-[var(--color-line)] px-2 py-3.5 first:border-l-0"
+ className="group relative flex flex-1 items-center justify-center gap-1.5 border-l border-[var(--color-line)] px-1.5 py-3.5 first:border-l-0 sm:gap-2.5 sm:px-2"
  >
  <Mark className="h-5 w-5 shrink-0 text-[var(--color-brand-2)]" />
  {iconOnly ? (

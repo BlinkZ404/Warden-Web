@@ -252,7 +252,6 @@ function FirstRun({
 function FleetPanel({ fleet }: { fleet: FleetMetrics }) {
  return (
  <StatTiles
- size="sm"
  tiles={[
  {
  label: "Autonomy",

@@ -264,8 +264,8 @@ export function Sidebar({ live }: { live: boolean }) {
 export function MobileNav({ live }: { live: boolean }) {
  const [open, setOpen] = useState(false);
  return (
- <div className="lg:hidden">
- <div className="flex items-center gap-3 border-b border-[var(--color-line)] px-4 py-3">
+ <>
+ <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-ink)] px-4 py-3 lg:hidden">
  <button
  onClick={() => setOpen(true)}
  aria-label="Open navigation"
@@ -281,7 +281,7 @@ export function MobileNav({ live }: { live: boolean }) {
  </div>
 
  {open && (
- <div className="fixed inset-0 z-50">
+ <div className="fixed inset-0 z-50 lg:hidden">
  <div
  className="absolute inset-0 bg-black/60"
  onClick={() => setOpen(false)}
@@ -296,6 +296,6 @@ export function MobileNav({ live }: { live: boolean }) {
  </aside>
  </div>
  )}
- </div>
+ </>
  );
 }

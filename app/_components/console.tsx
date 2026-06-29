@@ -98,7 +98,7 @@ export function Pager({
  * plus a right-aligned, always-wrapping actions/aside slot. */
 export function PageHeader({ title, aside }: { title: ReactNode; aside?: ReactNode }) {
  return (
- <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-7">
+ <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-4 sm:px-7 lg:sticky lg:top-0 lg:z-20 lg:bg-[var(--color-ink)]">
  <h1 className="font-mono text-xs text-[var(--color-text)]">{title}</h1>
  {aside != null && <div className="flex flex-wrap items-center gap-3">{aside}</div>}
  </header>
@@ -122,7 +122,7 @@ export function Banner({ tone = "var(--color-bad)", children }: { tone?: string;
 }
 
 export function PageBody({ children, className = "" }: { children: ReactNode; className?: string }) {
- return <div className={`px-7 py-6 ${className}`}>{children}</div>;
+ return <div className={`px-4 py-6 sm:px-7 ${className}`}>{children}</div>;
 }
 
 /** An external link with the right rel/target and an affordance arrow. */

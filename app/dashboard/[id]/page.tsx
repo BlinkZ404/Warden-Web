@@ -322,7 +322,7 @@ export default function IncidentDetail() {
  }
  />
 
- <div className="px-7 py-6">
+ <div className="px-4 py-6 sm:px-7">
  <h1 className="text-xl font-semibold tracking-tight">{incident.title}</h1>
  <p className="mt-1.5 truncate font-mono text-xs text-[var(--color-muted)]">
  {incident.service} <span className="opacity-40">·</span> {incident.fingerprint}

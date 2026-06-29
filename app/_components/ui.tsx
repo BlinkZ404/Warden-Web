@@ -39,7 +39,8 @@ export function PipelineBar({ status }: { status: IncidentStatus }) {
  }
 
  return (
- <div className="flex w-full">
+ <div className="overflow-x-auto">
+ <div className="flex w-full min-w-[680px]">
  {PIPELINE_STAGES.map((stage, i) => {
  const done = resolved ? true : i < idx;
  const active = i === idx;
@@ -77,6 +78,7 @@ export function PipelineBar({ status }: { status: IncidentStatus }) {
  </div>
  );
  })}
+ </div>
  </div>
  );
 }

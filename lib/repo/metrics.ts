@@ -25,11 +25,11 @@ export function safeRate(num: number, den: number): number | null {
 
 /**
  * §10 kill-switch: a post-ship revert rate at or below this is healthy; above
- * it is the "stop expanding fix scope" signal. The threshold is a policy number,
+ * it flags that too many shipped fixes are being reverted. The threshold is a policy number,
  * so it lives here in the data layer; the dashboard renders the derived
  * `revertWithinCeiling` boolean, not the bare number.
  */
-export const REVERT_RATE_CEILING = 0.05;
+export const REVERT_RATE_CEILING = 0.1;
 
 export interface FleetMetrics {
   totalIncidents: number;

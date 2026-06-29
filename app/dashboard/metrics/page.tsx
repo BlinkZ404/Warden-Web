@@ -160,10 +160,10 @@ function KillSwitch({ fleet }: { fleet: FleetMetrics }) {
  within === false ? "var(--color-bad)" : within === true ? "var(--color-ok)" : "var(--color-muted)";
  const headline =
  within === false
- ? "Revert rate above ceiling. Stop expanding fix scope."
+ ? "Too many shipped fixes had to be reverted. Try a stronger model, or keep approving fixes yourself for now."
  : within === true
- ? "Revert rate within ceiling. Safe to keep shipping."
- : "No production deploys to track yet. Kill-switch idle.";
+ ? "Reverts are within the safe range. Fixes are holding in production."
+ : "No fixes have shipped to production yet, so there is nothing to track.";
  return (
  <div className="relative">
  <div
@@ -182,7 +182,7 @@ function KillSwitch({ fleet }: { fleet: FleetMetrics }) {
  {headline}
  </div>
  <div className="mt-0.5 font-mono text-[11px] text-[var(--color-muted)]">
- kill-switch ceiling {Math.round(fleet.revertCeiling * 100)}%
+ safe limit: under {Math.round(fleet.revertCeiling * 100)}% reverted
  </div>
  </div>
  </div>

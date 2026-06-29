@@ -150,7 +150,7 @@ export function IncidentsTable({ incidents }: { incidents: IncidentRow[] }) {
  </div>
 
  <div className="overflow-x-auto">
- <div className="min-w-[680px]">
+ <div className="min-w-[820px]">
  <div className="flex items-center gap-4 border-b border-[var(--color-line)] px-4 py-2 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
  <span className="w-4 shrink-0" />
  {COLUMNS.map((c) => (
