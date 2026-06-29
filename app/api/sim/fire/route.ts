@@ -37,6 +37,6 @@ export async function POST(req: Request) {
 
 export async function GET() {
  return Response.json({
- bugs: SEEDED_BUGS.map((b) => ({ key: b.key, title: b.title })),
+ bugs: SEEDED_BUGS.map((b) => ({ key: b.key, title: b.title, expect: b.expect })),
  });
 }

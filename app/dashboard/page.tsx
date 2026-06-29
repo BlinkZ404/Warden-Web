@@ -19,6 +19,7 @@ import { pct, dur } from "@/lib/ui";
 interface Bug {
  key: string;
  title: string;
+ expect?: string;
 }
 
 export default function Dashboard() {
@@ -171,10 +172,10 @@ function SimulateMenu({
  setOpen(false);
  }}
  disabled={!!firing}
- className="block w-full cursor-pointer px-3 py-2 text-left transition hover:bg-[var(--color-panel-2)] disabled:cursor-not-allowed disabled:opacity-50"
+ className="block w-full cursor-pointer px-3 py-2.5 text-left transition hover:bg-[var(--color-panel-2)] disabled:cursor-not-allowed disabled:opacity-50"
  >
  <div className="font-mono text-xs text-[var(--color-text)]">{b.key}</div>
- <div className="truncate text-[11px] text-[var(--color-muted)]">{b.title}</div>
+ <div className="mt-0.5 text-[11px] leading-snug text-[var(--color-muted)]">{b.expect || b.title}</div>
  </button>
  ))}
  </div>

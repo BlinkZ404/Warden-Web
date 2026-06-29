@@ -32,6 +32,12 @@ export interface SeededBug {
   rootCause: string;
   /** Plain-English summary the sim Fixer attaches to the fix (for the founder). */
   fixSummary: string;
+  /**
+   * One-line "what to expect" shown in the simulate dropdown so a judge sees the
+   * intended outcome (clean ship vs escalation or rollback) before firing, and
+   * never mistakes a deliberate escalation for a failure.
+   */
+  expect: string;
   /** Reproduction scenario understood by sample-app/scripts/reproduce.js. */
   reproScenario: string;
   /** Input that reproduces the crash. */
@@ -100,6 +106,7 @@ const DISCOUNT_BAD =
 export const SEEDED_BUGS: SeededBug[] = [
   {
     key: "checkout-missing-price",
+    expect: "Fixes it and ships after you approve",
     fingerprint: "checkout-service/computeCheckoutTotal/TypeError-amount",
     title: "TypeError in checkout: cannot read 'amount' of undefined",
     service: "checkout-service",
@@ -135,6 +142,7 @@ export const SEEDED_BUGS: SeededBug[] = [
   },
   {
     key: "discount-unknown-code",
+    expect: "Reviewers disagree, so it escalates to you",
     fingerprint: "checkout-service/applyDiscount/TypeError-percent",
     title: "TypeError in discount: cannot read 'percent' of undefined",
     service: "checkout-service",
@@ -157,6 +165,7 @@ export const SEEDED_BUGS: SeededBug[] = [
     // Reviewer catching it and the bounded retry loop re-proposing a tighter fix
     // that ships, rather than escalating.
     key: "checkout-missing-price-risky",
+    expect: "First fix changes too much, so it retries a focused one and ships",
     fingerprint: "checkout-service/computeCheckoutTotal/TypeError-amount-risky",
     title: "TypeError in checkout (risky-fix scenario)",
     service: "checkout-service",
@@ -184,6 +193,7 @@ export const SEEDED_BUGS: SeededBug[] = [
     // approved, but production error rate spikes after promotion, exercising
     // the auto-rollback path.
     key: "checkout-prod-regression",
+    expect: "Ships, then undoes itself when production errors spike",
     fingerprint: "checkout-service/computeCheckoutTotal/TypeError-amount-prodreg",
     title: "TypeError in checkout (prod-regression scenario)",
     service: "checkout-service",
@@ -205,6 +215,7 @@ export const SEEDED_BUGS: SeededBug[] = [
     // file comes back on every revision), so after MAX_FIX_ATTEMPTS Warden
     // escalates to a human instead of looping forever or shipping it.
     key: "checkout-stubborn-scope",
+    expect: "Fix keeps changing too much, so it escalates to you",
     fingerprint: "checkout-service/computeCheckoutTotal/TypeError-amount-stubborn",
     title: "TypeError in checkout (won't-tighten scenario)",
     service: "checkout-service",
@@ -232,6 +243,7 @@ export const SEEDED_BUGS: SeededBug[] = [
     // and verifies it but routes it to a human for approval rather than
     // auto-shipping (the require-approval policy for protected paths).
     key: "signin-email-typo",
+    expect: "Touches auth code, so it waits for your approval",
     fingerprint: "notehex/normalizeEmail/TypeError-toLowerCasee",
     title: "TypeError in sign-in: email.trim(...).toLowerCasee is not a function",
     service: "notehex",
