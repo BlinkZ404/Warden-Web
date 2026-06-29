@@ -1,5 +1,5 @@
 import { allSettings, setSettings, SECRET_KEYS, WRITABLE_KEYS } from "@/lib/repo/settings";
-import { hydrateSettings, setting } from "@/lib/runtime-config";
+import { hydrateSettings, setting, liveModeAvailable } from "@/lib/runtime-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export async function GET() {
  if (v) out[k] = v;
  }
  }
- return Response.json({ settings: out });
+ return Response.json({ settings: out, liveLocked: !liveModeAvailable() });
 }
 
 /**
@@ -46,6 +46,9 @@ export async function PUT(req: Request) {
  if (SECRET_KEYS.has(k) && v.trim() === "") continue;
  entries[k] = v;
  }
+ // Guest demo (no auth): run mode is locked to simulation, so a settings save must
+ // never flip it. The runtime ignores a stray value anyway; this keeps config clean.
+ if (!liveModeAvailable()) delete entries.WARDEN_MODE;
  if (Object.keys(entries).length) await setSettings(entries);
  return Response.json({ ok: true, saved: Object.keys(entries) });
 }

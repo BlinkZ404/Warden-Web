@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 /** Loads settings from /api/settings and tracks edits + per-section saving. */
 export function useSettings() {
  const [loaded, setLoaded] = useState<Record<string, unknown>>({});
+ const [liveLocked, setLiveLocked] = useState(false);
  const [draft, setDraft] = useState<Record<string, string>>({});
  const [saving, setSaving] = useState<string | null>(null);
  const [error, setError] = useState<string | null>(null);
@@ -12,7 +13,11 @@ export function useSettings() {
  const reload = useCallback(async () => {
  try {
  const r = await fetch("/api/settings", { cache: "no-store" });
- if (r.ok) setLoaded((await r.json()).settings ?? {});
+ if (r.ok) {
+ const j = await r.json();
+ setLoaded(j.settings ?? {});
+ setLiveLocked(!!j.liveLocked);
+ }
  } catch {
  /* keep current state */
  }
@@ -65,7 +70,7 @@ export function useSettings() {
  }
  }
 
- return { text, draftVal, set, secret, save, saving, error };
+ return { text, draftVal, set, secret, save, saving, error, liveLocked };
 }
 
 export type UseSettings = ReturnType<typeof useSettings>;

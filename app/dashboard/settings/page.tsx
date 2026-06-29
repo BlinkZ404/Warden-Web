@@ -7,7 +7,7 @@ import { PageHeader, PageBody, Banner, Button } from "@/app/_components/console"
 import { Icon } from "@/app/_components/icons";
 
 export default function SettingsPage() {
- const { text, set, save, saving, error } = useSettings();
+ const { text, set, save, saving, error, liveLocked } = useSettings();
  const [savingRepo, setSavingRepo] = useState(false);
  const [saved, setSaved] = useState(false);
  const [repos, setRepos] = useState<{ full_name: string; private: boolean }[]>([]);
@@ -40,9 +40,19 @@ export default function SettingsPage() {
  <Section
  icon="shield"
  title="Run mode"
- onSave={() => save("mode", ["WARDEN_MODE"])}
+ onSave={liveLocked ? undefined : () => save("mode", ["WARDEN_MODE"])}
  busy={saving === "mode"}
  >
+ {liveLocked ? (
+ <>
+ <Row label="Mode">
+ <span className="font-mono text-xs text-[var(--color-muted)]">simulation · locked</span>
+ </Row>
+ <div className="border border-[var(--color-line)] bg-[var(--color-panel-2)] px-3 py-2.5 text-xs leading-relaxed text-[var(--color-muted)]">
+ Live mode acts on real services (Sentry, your repo, your provider keys), so it requires a signed-in account. This public demo has no sign-in, so it runs in simulation, keeping the experience clean and consistent for every visitor.
+ </div>
+ </>
+ ) : (
  <Row label="Mode" hint="Simulation never touches real services. Live uses your saved keys.">
  <Select
  value={text("WARDEN_MODE", "simulation")}
@@ -53,6 +63,7 @@ export default function SettingsPage() {
  <option value="live">live</option>
  </Select>
  </Row>
+ )}
  </Section>
 
  <Section icon="code" title="Target repository" aside="link a GitHub repo">

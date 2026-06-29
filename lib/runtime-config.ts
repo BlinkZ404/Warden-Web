@@ -38,7 +38,18 @@ export function setting(key: string, fallback = ""): string {
 
 export type Mode = "simulation" | "live";
 
+/**
+ * Live mode acts on real services (Sentry, the linked repo, provider keys), so it
+ * is reserved for an authenticated deployment. With no auth configured the app is
+ * a public guest demo and runs simulation-only, so a visitor can never point it at
+ * real services and every visitor gets the same clean, consistent run.
+ */
+export function liveModeAvailable(): boolean {
+ return !!process.env.CLERK_SECRET_KEY;
+}
+
 export function effectiveMode(): Mode {
+ if (!liveModeAvailable()) return "simulation";
  return setting("WARDEN_MODE", "simulation") === "live" ? "live" : "simulation";
 }
 
